@@ -1,0 +1,16 @@
+{
+    "version":  1,
+    "dataDir":  "C:\\Daten\\Kowo-Agent\\shared\\sample-data\\Inventory",
+    "masterCsvPath":  "C:\\Daten\\Kowo-Agent\\shared\\sample-data\\Rollout_Masterliste.csv",
+    "assignmentsPath":  "C:\\Daten\\Kowo-Agent\\shared\\sample-data\\control\\assignments.json",
+    "adEnabled":  false,
+    "thresholds":  {
+                       "minRamGB":  8,
+                       "maxAgeYears":  5,
+                       "staleDays":  30,
+                       "requireSsd":  true,
+                       "minCpuCores":  4,
+                       "minCpuClockMhz":  2000,
+                       "targetRamGB":  16
+                   }
+}

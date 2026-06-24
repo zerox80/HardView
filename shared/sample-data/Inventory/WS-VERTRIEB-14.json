@@ -1,0 +1,80 @@
+{
+    "schemaVersion":  1,
+    "agentVersion":  "1.0.0",
+    "collectedAtUtc":  "2026-03-26T11:50:24Z",
+    "hostname":  "WS-VERTRIEB-14",
+    "domain":  "kowobau.local",
+    "currentUser":  "KOWOBAU\\Florian.Maier",
+    "lastLoggedOnUser":  "KOWOBAU\\Florian.Maier",
+    "chassis":  "Desktop",
+    "manufacturer":  "Dell Inc.",
+    "model":  "OptiPlex 7090",
+    "serialNumber":  "SNRIEB14",
+    "bios":  {
+                 "version":  "1.12.0",
+                 "releaseDate":  "2024-03-06T23:50:24Z"
+             },
+    "ageYears":  2.3,
+    "ageSource":  "bios",
+    "cpu":  {
+                "name":  "Intel Core i5-12500",
+                "cores":  6,
+                "logicalProcessors":  12,
+                "maxClockMhz":  3200,
+                "sockets":  1
+            },
+    "ram":  {
+                "totalGB":  16,
+                "slotsUsed":  2,
+                "slotsTotal":  4,
+                "sticks":  [
+                               {
+                                   "capacityGB":  8,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM0"
+                               },
+                               {
+                                   "capacityGB":  8,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM1"
+                               }
+                           ]
+            },
+    "disks":  [
+                  {
+                      "model":  "Samsung SSD 870",
+                      "sizeGB":  512,
+                      "mediaType":  "SSD",
+                      "busType":  "SATA"
+                  }
+              ],
+    "gpus":  [
+                 "Intel UHD Graphics"
+             ],
+    "os":  {
+               "caption":  "Windows 11 Pro",
+               "version":  "10.0.22621",
+               "build":  "22621",
+               "installDateUtc":  "2024-03-20T23:50:24Z",
+               "lastBootUtc":  "2026-06-22T11:50:24Z",
+               "architecture":  "64-Bit"
+           },
+    "win11":  {
+                  "tpmPresent":  true,
+                  "tpmVersion":  "2.0",
+                  "secureBoot":  true
+              },
+    "network":  [
+                    {
+                        "mac":  "00:1A:2B:3C:4D:5E",
+                        "ipv4":  "10.4.18.131"
+                    }
+                ],
+    "collectionErrors":  [
+
+                         ]
+}

@@ -1,0 +1,73 @@
+{
+    "schemaVersion":  1,
+    "agentVersion":  "1.0.0",
+    "collectedAtUtc":  "2026-06-22T11:50:24Z",
+    "hostname":  "WS-BUCH-02",
+    "domain":  "kowobau.local",
+    "currentUser":  "KOWOBAU\\Sabine.Koehler",
+    "lastLoggedOnUser":  "KOWOBAU\\Sabine.Koehler",
+    "chassis":  "Desktop",
+    "manufacturer":  "HP",
+    "model":  "EliteDesk 800 G6",
+    "serialNumber":  "SNBUCH02",
+    "bios":  {
+                 "version":  "1.12.0",
+                 "releaseDate":  "2021-11-17T11:50:24Z"
+             },
+    "ageYears":  4.6,
+    "ageSource":  "bios",
+    "cpu":  {
+                "name":  "Intel Core i5-10400",
+                "cores":  6,
+                "logicalProcessors":  12,
+                "maxClockMhz":  3200,
+                "sockets":  1
+            },
+    "ram":  {
+                "totalGB":  8,
+                "slotsUsed":  1,
+                "slotsTotal":  4,
+                "sticks":  [
+                               {
+                                   "capacityGB":  8,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM0"
+                               }
+                           ]
+            },
+    "disks":  [
+                  {
+                      "model":  "Samsung SSD 870",
+                      "sizeGB":  256,
+                      "mediaType":  "SSD",
+                      "busType":  "SATA"
+                  }
+              ],
+    "gpus":  [
+                 "Intel UHD Graphics"
+             ],
+    "os":  {
+               "caption":  "Windows 10 Pro",
+               "version":  "10.0.19045",
+               "build":  "19045",
+               "installDateUtc":  "2021-12-01T11:50:24Z",
+               "lastBootUtc":  "2026-06-22T11:50:24Z",
+               "architecture":  "64-Bit"
+           },
+    "win11":  {
+                  "tpmPresent":  false,
+                  "tpmVersion":  "1.2",
+                  "secureBoot":  false
+              },
+    "network":  [
+                    {
+                        "mac":  "00:1A:2B:3C:4D:5E",
+                        "ipv4":  "10.4.15.191"
+                    }
+                ],
+    "collectionErrors":  [
+
+                         ]
+}

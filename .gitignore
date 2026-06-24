@@ -1,0 +1,16 @@
+# Rust / Tauri build output
+app/src-tauri/target/
+app/src-tauri/gen/
+
+# Node
+node_modules/
+
+# Dev-/Verifikations-Artefakte
+app/hardview-screenshot.png
+**/*.tmp
+**/*.tmp-*
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

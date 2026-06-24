@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hardview-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["app/dev-server.js"],
+      "port": 5599
+    }
+  ]
+}

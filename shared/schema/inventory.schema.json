@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kowobau.local/schema/inventory.schema.json",
+  "title": "Kowobau Hardware-Inventar (pro Geraet)",
+  "description": "Eine vom Inventar-Agent je PC erzeugte JSON-Datei (<hostname>.json) auf dem Inventar-Share.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "hostname", "collectedAtUtc"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "agentVersion": { "type": "string" },
+    "collectedAtUtc": { "type": "string", "format": "date-time", "description": "Zeitpunkt der Erhebung (UTC, ISO-8601)." },
+    "hostname": { "type": "string" },
+    "domain": { "type": ["string", "null"] },
+    "currentUser": { "type": ["string", "null"], "description": "Interaktiv angemeldeter Benutzer zum Erhebungszeitpunkt (unter SYSTEM ggf. null)." },
+    "lastLoggedOnUser": { "type": ["string", "null"], "description": "Zuletzt angemeldeter Benutzer (LogonUI)." },
+    "chassis": { "type": "string", "enum": ["Desktop", "Laptop", "All-in-One", "Server/Rack", "Unbekannt"] },
+    "manufacturer": { "type": ["string", "null"] },
+    "model": { "type": ["string", "null"] },
+    "serialNumber": { "type": ["string", "null"] },
+    "bios": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "version": { "type": ["string", "null"] },
+        "releaseDate": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "ageYears": { "type": ["number", "null"], "description": "Geraetealter in Jahren (aus BIOS-Datum, Fallback OS-Install)." },
+    "ageSource": { "type": ["string", "null"], "enum": ["bios", "osInstall", null] },
+    "cpu": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "cores": { "type": ["integer", "null"] },
+        "logicalProcessors": { "type": ["integer", "null"] },
+        "maxClockMhz": { "type": ["integer", "null"] },
+        "sockets": { "type": ["integer", "null"] }
+      }
+    },
+    "ram": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "totalGB": { "type": ["number", "null"] },
+        "slotsUsed": { "type": ["integer", "null"] },
+        "slotsTotal": { "type": ["integer", "null"] },
+        "sticks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "capacityGB": { "type": ["number", "null"] },
+              "speedMhz": { "type": ["integer", "null"] },
+              "manufacturer": { "type": ["string", "null"] },
+              "partNumber": { "type": ["string", "null"] },
+              "slot": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "disks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "model": { "type": ["string", "null"] },
+          "sizeGB": { "type": ["number", "null"] },
+          "mediaType": { "type": "string", "enum": ["SSD", "HDD", "SCM", "Unbekannt"] },
+          "busType": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "gpus": { "type": "array", "items": { "type": "string" } },
+    "os": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "caption": { "type": ["string", "null"] },
+        "version": { "type": ["string", "null"] },
+        "build": { "type": ["string", "null"] },
+        "installDateUtc": { "type": ["string", "null"], "format": "date-time" },
+        "lastBootUtc": { "type": ["string", "null"], "format": "date-time" },
+        "architecture": { "type": ["string", "null"] }
+      }
+    },
+    "win11": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "tpmPresent": { "type": ["boolean", "null"] },
+        "tpmVersion": { "type": ["string", "null"] },
+        "secureBoot": { "type": ["boolean", "null"] }
+      }
+    },
+    "network": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "mac": { "type": ["string", "null"] },
+          "ipv4": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "collectionErrors": { "type": "array", "items": { "type": "string" } }
+  }
+}

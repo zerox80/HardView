@@ -1,0 +1,80 @@
+{
+    "schemaVersion":  1,
+    "agentVersion":  "1.0.0",
+    "collectedAtUtc":  "2026-05-10T11:50:24Z",
+    "hostname":  "WS-LAGER-01",
+    "domain":  "kowobau.local",
+    "currentUser":  "KOWOBAU\\Petra.Lang",
+    "lastLoggedOnUser":  "KOWOBAU\\Petra.Lang",
+    "chassis":  "Desktop",
+    "manufacturer":  "Fujitsu",
+    "model":  "Esprimo D538",
+    "serialNumber":  "SNAGER01",
+    "bios":  {
+                 "version":  "1.12.0",
+                 "releaseDate":  "2019-10-11T23:50:24Z"
+             },
+    "ageYears":  6.7,
+    "ageSource":  "bios",
+    "cpu":  {
+                "name":  "Intel Core i3-8100",
+                "cores":  4,
+                "logicalProcessors":  4,
+                "maxClockMhz":  2400,
+                "sockets":  1
+            },
+    "ram":  {
+                "totalGB":  8,
+                "slotsUsed":  2,
+                "slotsTotal":  2,
+                "sticks":  [
+                               {
+                                   "capacityGB":  4,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM0"
+                               },
+                               {
+                                   "capacityGB":  4,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM1"
+                               }
+                           ]
+            },
+    "disks":  [
+                  {
+                      "model":  "Seagate Barracuda",
+                      "sizeGB":  500,
+                      "mediaType":  "HDD",
+                      "busType":  "SATA"
+                  }
+              ],
+    "gpus":  [
+                 "Intel UHD Graphics"
+             ],
+    "os":  {
+               "caption":  "Windows 10 Pro",
+               "version":  "10.0.19044",
+               "build":  "19044",
+               "installDateUtc":  "2019-10-25T23:50:24Z",
+               "lastBootUtc":  "2026-06-22T11:50:24Z",
+               "architecture":  "64-Bit"
+           },
+    "win11":  {
+                  "tpmPresent":  false,
+                  "tpmVersion":  "1.2",
+                  "secureBoot":  false
+              },
+    "network":  [
+                    {
+                        "mac":  "00:1A:2B:3C:4D:5E",
+                        "ipv4":  "10.4.16.118"
+                    }
+                ],
+    "collectionErrors":  [
+
+                         ]
+}

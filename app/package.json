@@ -1,0 +1,16 @@
+{
+  "name": "hardview",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HardView — Hardware-Inventar & Asset-Zuordnung (Kowobau IT)",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icons": "tauri icon src-tauri/icon-source.png",
+    "preview": "node dev-server.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.3"
+  }
+}

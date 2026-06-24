@@ -1,0 +1,14 @@
+{
+    "version":  3,
+    "updatedAtUtc":  "2026-06-24T11:50:24Z",
+    "updatedBy":  "KOWOBAU\\T.Administrator",
+    "assignments":  {
+                        "WS-IT-07":  {
+                                         "user":  "Daniel.Richter",
+                                         "userDisplay":  "Daniel Richter",
+                                         "confirmedBy":  "KOWOBAU\\T.Administrator",
+                                         "confirmedAtUtc":  "2026-06-19T11:50:24Z",
+                                         "note":  "Geraet nach Abteilungswechsel bestaetigt."
+                                     }
+                    }
+}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HardView — Hardware-Inventar</title>
+<!-- Keine externen Schriften (offline-/datenschutzfreundlich): styles.css nutzt lokale Fallbacks
+     (Segoe UI / Consolas). IBM Plex wird verwendet, falls auf dem System installiert. -->
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Title bar -->
+  <div class="titlebar" data-tauri-drag-region>
+    <div class="brand" data-tauri-drag-region>
+      <div class="logo"><div></div></div>
+      <span class="name">HardView</span>
+      <span class="sub">— Hardware-Inventar</span>
+    </div>
+    <div class="winbtns">
+      <div class="winbtn" data-win="min" title="Minimieren">
+        <svg width="11" height="11" viewBox="0 0 11 11"><line x1="0" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.2"/></svg>
+      </div>
+      <div class="winbtn" data-win="max" title="Maximieren">
+        <svg width="11" height="11" viewBox="0 0 11 11"><rect x="0.6" y="0.6" width="9.8" height="9.8" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      </div>
+      <div class="winbtn close" data-win="close" title="Schließen">
+        <svg width="11" height="11" viewBox="0 0 11 11"><line x1="0.5" y1="0.5" x2="10.5" y2="10.5" stroke="currentColor" stroke-width="1.2"/><line x1="10.5" y1="0.5" x2="0.5" y2="10.5" stroke="currentColor" stroke-width="1.2"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="side-label">Übersicht</div>
+      <div class="nav" id="nav">
+        <div class="nav-item" data-view="dashboard">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="6" height="6" rx="1.4" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span class="label">Dashboard</span>
+        </div>
+        <div class="nav-item active" data-view="inventar">
+          <span class="bar"></span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><line x1="2" y1="3.5" x2="14" y2="3.5" stroke="currentColor" stroke-width="1.4"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.4"/><line x1="2" y1="12.5" x2="14" y2="12.5" stroke="currentColor" stroke-width="1.4"/></svg>
+          <span class="label">Inventar</span>
+        </div>
+        <div class="nav-item" data-view="warnungen">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.6 15 14H1L8 1.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="8" y1="6.4" x2="8" y2="9.6" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="11.6" r="0.85" fill="currentColor"/></svg>
+          <span class="label">Upgrades</span>
+          <span class="badge" id="navWarnBadge">0</span>
+        </div>
+        <div class="nav-item" data-view="gruppen">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="3" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="10" r="3" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span class="label">Abteilungen</span>
+        </div>
+        <div class="nav-item" data-view="berichte">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="8" width="3" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="6.5" y="4" width="3" height="10" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="11" y="6" width="3" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+          <span class="label">Berichte</span>
+        </div>
+        <div class="nav-item" data-view="einstellungen">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <span class="label">Einstellungen</span>
+        </div>
+      </div>
+
+      <div class="side-footer">
+        <div class="inner">
+          <div class="ad-status">
+            <div class="dot-live" id="adDot"></div>
+            <div class="col">
+              <span class="t1" id="adText">AD verbunden</span>
+              <span class="t2" id="adSub">kowobau.local</span>
+            </div>
+          </div>
+          <div class="user-card">
+            <div class="av" id="meInitials">TA</div>
+            <div class="col">
+              <span class="t1" id="meName">T. Administrator</span>
+              <span class="t2">IT-Administration</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="header">
+        <div class="header-row">
+          <div>
+            <h1 id="viewTitle">Geräte-Inventar</h1>
+            <p id="viewSubtitle">Hardware-Bestand aller Arbeitsplätze · wöchentliche Inventarisierung</p>
+          </div>
+          <div class="header-actions">
+            <div class="btn" id="refreshBtn" title="Daten vom Share neu einlesen">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12 7a5 5 0 1 1-1.5-3.5M12 1.5V4H9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="refreshLabel">Aktualisieren</span>
+            </div>
+            <div class="btn btn-primary" id="exportBtn">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M7 9 4 6M7 9l3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M1.5 11.5h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              Export
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI strip -->
+        <div class="kpis" id="kpis"></div>
+
+        <!-- Filter / search row -->
+        <div class="filters" id="filters">
+          <div class="search">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="4.6" stroke="#5f6776" stroke-width="1.3"/><line x1="10" y1="10" x2="13.5" y2="13.5" stroke="#5f6776" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input id="searchInput" placeholder="Hostname, Benutzer, CPU, Abteilung …" autocomplete="off">
+          </div>
+          <div class="segs" id="segs"></div>
+          <div class="result-count" id="resultCount"></div>
+        </div>
+      </div>
+
+      <!-- Inventar table -->
+      <div class="table" id="tableView">
+        <div class="thead grid-cols" id="thead"></div>
+        <div class="tbody" id="tbody"></div>
+      </div>
+
+      <!-- Dashboard / other views -->
+      <div class="dash hidden" id="dashView"></div>
+
+      <!-- Detail drawer mount -->
+      <div id="drawerMount"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal + toast mounts -->
+<div id="modalMount"></div>
+<div id="toastMount"></div>
+
+<script src="mock.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

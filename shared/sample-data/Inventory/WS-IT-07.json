@@ -1,0 +1,80 @@
+{
+    "schemaVersion":  1,
+    "agentVersion":  "1.0.0",
+    "collectedAtUtc":  "2026-06-24T11:50:24Z",
+    "hostname":  "WS-IT-07",
+    "domain":  "kowobau.local",
+    "currentUser":  "KOWOBAU\\Daniel.Richter",
+    "lastLoggedOnUser":  "KOWOBAU\\Daniel.Richter",
+    "chassis":  "Desktop",
+    "manufacturer":  "Custom",
+    "model":  "Workstation",
+    "serialNumber":  "SNWSIT07",
+    "bios":  {
+                 "version":  "1.12.0",
+                 "releaseDate":  "2023-05-18T23:50:24Z"
+             },
+    "ageYears":  3.1,
+    "ageSource":  "bios",
+    "cpu":  {
+                "name":  "AMD Ryzen 7 5800X",
+                "cores":  8,
+                "logicalProcessors":  16,
+                "maxClockMhz":  3200,
+                "sockets":  1
+            },
+    "ram":  {
+                "totalGB":  32,
+                "slotsUsed":  2,
+                "slotsTotal":  4,
+                "sticks":  [
+                               {
+                                   "capacityGB":  16,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM0"
+                               },
+                               {
+                                   "capacityGB":  16,
+                                   "speedMhz":  3200,
+                                   "manufacturer":  "Samsung",
+                                   "partNumber":  "M471A1K43DB1",
+                                   "slot":  "DIMM1"
+                               }
+                           ]
+            },
+    "disks":  [
+                  {
+                      "model":  "Samsung SSD 870",
+                      "sizeGB":  1024,
+                      "mediaType":  "SSD",
+                      "busType":  "SATA"
+                  }
+              ],
+    "gpus":  [
+                 "Intel UHD Graphics"
+             ],
+    "os":  {
+               "caption":  "Windows 11 Pro",
+               "version":  "10.0.22631",
+               "build":  "22631",
+               "installDateUtc":  "2023-06-01T23:50:24Z",
+               "lastBootUtc":  "2026-06-22T11:50:24Z",
+               "architecture":  "64-Bit"
+           },
+    "win11":  {
+                  "tpmPresent":  true,
+                  "tpmVersion":  "2.0",
+                  "secureBoot":  true
+              },
+    "network":  [
+                    {
+                        "mac":  "00:1A:2B:3C:4D:5E",
+                        "ipv4":  "10.4.16.156"
+                    }
+                ],
+    "collectionErrors":  [
+
+                         ]
+}
