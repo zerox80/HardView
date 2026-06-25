@@ -56,7 +56,8 @@ pub(super) fn os_short(caption: &str, build: &str) -> String {
         "22621" => "22H2",
         "19045" => "22H2",
         "19044" => "21H2",
-        "26100" | "26200" => "24H2",
+        "26100" => "24H2",
+        "26200" => "25H2",
         _ => "",
     };
     if label.is_empty() {

@@ -26,7 +26,7 @@
         "releaseDate": { "type": ["string", "null"], "format": "date-time" }
       }
     },
-    "ageYears": { "type": ["number", "null"], "description": "Geraetealter in Jahren (aus BIOS-Datum, Fallback OS-Install)." },
+    "ageYears": { "type": ["number", "null"], "description": "Geraetealter in Jahren: das aeltere Signal aus BIOS-Releasedatum und OS-Installdatum (robust gegen Firmware-Updates und Neuinstallationen)." },
     "ageSource": { "type": ["string", "null"], "enum": ["bios", "osInstall", null] },
     "cpu": {
       "type": "object",

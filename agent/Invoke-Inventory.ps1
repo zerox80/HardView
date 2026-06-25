@@ -201,15 +201,22 @@ try {
 $gpus = @()
 if ($gpu) { foreach ($g in @($gpu)) { if ($g.Name) { $gpus += $g.Name.Trim() } } }
 
-# --- BIOS-Datum & Alter (Hauptsignal fuer das PC-Alter)
+# --- BIOS-Datum & Alter
+# Alter = das AELTERE (fruehere) Signal aus BIOS-Releasedatum und OS-Installdatum.
+# So verjuengt weder ein BIOS-/Firmware-Update (setzt das BIOS-Datum nach vorn)
+# noch eine Windows-Neuinstallation (setzt das OS-Datum nach vorn) das Geraet:
+# wir nehmen jeweils den frueheren Nachweis, also das groessere Alter.
 $biosDate = if ($bios) { To-IsoUtc $bios.ReleaseDate } else { $null }
 $ageYears = $null
 $ageSource = $null
-if ($bios -and $bios.ReleaseDate) {
-    $ageYears = [math]::Round(((Get-Date).ToUniversalTime() - ([datetime]$bios.ReleaseDate).ToUniversalTime()).TotalDays / 365.25, 1)
+$nowUtc = (Get-Date).ToUniversalTime()
+$biosAge = if ($bios -and $bios.ReleaseDate) { ($nowUtc - ([datetime]$bios.ReleaseDate).ToUniversalTime()).TotalDays / 365.25 } else { $null }
+$osAge   = if ($os   -and $os.InstallDate)   { ($nowUtc - ([datetime]$os.InstallDate).ToUniversalTime()).TotalDays / 365.25 } else { $null }
+if ($null -ne $biosAge -and ($null -eq $osAge -or $biosAge -ge $osAge)) {
+    $ageYears = [math]::Round($biosAge, 1)
     $ageSource = 'bios'
-} elseif ($os -and $os.InstallDate) {
-    $ageYears = [math]::Round(((Get-Date).ToUniversalTime() - ([datetime]$os.InstallDate).ToUniversalTime()).TotalDays / 365.25, 1)
+} elseif ($null -ne $osAge) {
+    $ageYears = [math]::Round($osAge, 1)
     $ageSource = 'osInstall'
 }
 
