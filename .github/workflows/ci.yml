@@ -70,3 +70,65 @@ jobs:
       - name: JS-Syntax pruefen
         working-directory: app
         run: npm run check
+
+  source-limits:
+    name: Source-Line-Limits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Max 300 Zeilen je Quelldatei
+        shell: bash
+        run: |
+          set -euo pipefail
+          limit=300
+          failed=0
+          while IFS= read -r file; do
+            lines=$(wc -l < "$file")
+            if [ "$lines" -gt "$limit" ]; then
+              echo "::error file=$file::${lines} lines exceed ${limit}"
+              failed=1
+            fi
+          done < <(git ls-files '*.rs' '*.js' '*.css' '*.html')
+          exit "$failed"
+
+  build:
+    name: Tauri-Build (Windows)
+    runs-on: windows-latest
+    needs: [backend, frontend, source-limits]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Cargo-Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/src-tauri/target
+          key: ${{ runner.os }}-tauri-build-${{ hashFiles('app/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-tauri-build-
+            ${{ runner.os }}-cargo-
+
+      - name: Frontend-Abhaengigkeiten installieren
+        working-directory: app
+        run: npm ci
+
+      - name: Tauri-App bauen
+        working-directory: app
+        run: npm run build
+
+      - name: MSI-Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: HardView-msi
+          path: app/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
