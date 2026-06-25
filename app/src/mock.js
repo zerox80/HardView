@@ -32,7 +32,7 @@
 
   function hashColor(s) { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return PALETTE[n % PALETTE.length]; }
   function initials(f, l) { return ((f || '?')[0] + (l || '?')[0]).toUpperCase(); }
-  function osShort(os, b) { const w = os.includes('11') ? 'Win 11' : os.includes('10') ? 'Win 10' : os; const map = { '22631':'23H2','22621':'22H2','19045':'22H2','19044':'21H2','26100':'24H2','26200':'24H2' }; return w + (map[b] ? ' ' + map[b] : ''); }
+  function osShort(os, b) { const w = os.includes('11') ? 'Win 11' : os.includes('10') ? 'Win 10' : os; const map = { '22631':'23H2','22621':'22H2','19045':'22H2','19044':'21H2','26100':'24H2','26200':'25H2' }; return w + (map[b] ? ' ' + map[b] : ''); }
   function lastSeen(days) { if (days == null) return '—'; if (days < 1) return 'gerade eben'; if (days === 1) return 'vor 1 Tag'; return 'vor ' + days + ' Tagen'; }
   function intAtLeast(value, fallback, min) {
     const parsed = parseInt(value, 10);
