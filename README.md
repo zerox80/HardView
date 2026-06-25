@@ -1,6 +1,6 @@
 # Kowo-Agent · HardView
 
-Hardware-Inventarisierung & Asset-Zuordnung für die Kowobau-IT (Domäne `kowobau.local`).
+Hardware-Inventarisierung & Asset-Zuordnung für die Kowobau-IT (Domäne xxx).
 
 Ziel: **Wie alt sind die PCs? Wer hat zu wenig RAM / eine HDD / eine schwache CPU? Wo muss die IT
 aufrüsten?** — plus eine schöne Desktop-App, in der man PCs den AD-Benutzern zuordnet.
