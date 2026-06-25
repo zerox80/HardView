@@ -70,7 +70,7 @@ foreach ($p in $pcs) {
         schemaVersion=1; agentVersion='1.0.0'
         collectedAtUtc=$collected.ToString('yyyy-MM-ddTHH:mm:ssZ')
         hostname=$p.h; domain='corp.local'
-        currentUser=("KOWOBAU\{0}.{1}" -f $p.f, $p.l); lastLoggedOnUser=("KOWOBAU\{0}.{1}" -f $p.f, $p.l)
+        currentUser=("CORP\{0}.{1}" -f $p.f, $p.l); lastLoggedOnUser=("CORP\{0}.{1}" -f $p.f, $p.l)
         chassis=$(if ($p.mdl -match 'ThinkPad|Carbon|Laptop|Book') {'Laptop'} else {'Desktop'})
         manufacturer=$p.mfg; model=$p.mdl; serialNumber=('SN' + ($p.h -replace '\W','').Substring([math]::Max(0,($p.h -replace '\W','').Length-6)))
         bios=[ordered]@{ version='1.12.0'; releaseDate=$biosDate.ToString('yyyy-MM-ddTHH:mm:ssZ') }
@@ -91,9 +91,9 @@ foreach ($p in $pcs) {
 
 # --- assignments.json (eine manuelle Bestaetigung als Demo der Quellen-Prioritaet) ---
 $assign = [ordered]@{
-    version=3; updatedAtUtc=$now.ToString('yyyy-MM-ddTHH:mm:ssZ'); updatedBy='KOWOBAU\T.Administrator'
+    version=3; updatedAtUtc=$now.ToString('yyyy-MM-ddTHH:mm:ssZ'); updatedBy='CORP\T.Administrator'
     assignments=[ordered]@{
-        'WS-IT-07'=[ordered]@{ user='Daniel.Richter'; userDisplay='Daniel Richter'; confirmedBy='KOWOBAU\T.Administrator'; confirmedAtUtc=$now.AddDays(-5).ToString('yyyy-MM-ddTHH:mm:ssZ'); note='Geraet nach Abteilungswechsel bestaetigt.' }
+        'WS-IT-07'=[ordered]@{ user='Daniel.Richter'; userDisplay='Daniel Richter'; confirmedBy='CORP\T.Administrator'; confirmedAtUtc=$now.AddDays(-5).ToString('yyyy-MM-ddTHH:mm:ssZ'); note='Geraet nach Abteilungswechsel bestaetigt.' }
     }
 }
 [System.IO.File]::WriteAllText((Join-Path $controlDir 'assignments.json'), ($assign | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
