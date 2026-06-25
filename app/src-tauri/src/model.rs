@@ -103,6 +103,7 @@ pub struct NetInv {
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Thresholds {
+    #[serde(rename = "minRamGB")]
     pub min_ram_gb: i64,
     pub max_age_years: f64,
     pub stale_days: i64,
