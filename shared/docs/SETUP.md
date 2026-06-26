@@ -48,6 +48,11 @@ Verifizieren über `agent.log` und die erzeugte `<hostname>.json`.
 - **Zuordnung** schreibt mit Share-Lock atomar in `control\assignments.json` (version-hochzählend).
 
 ## Troubleshooting
+
+> `LastTaskResult = 0x1`: TaskScheduler-Eventlog und `%ProgramData%\HardView\agent\agent.log`
+> pruefen; fuer echte stdout/stderr-Ausgaben `Install-InventoryTask.ps1 -DebugLog` nutzen
+> (siehe Deployment-Doku).
+
 | Symptom | Ursache / Lösung |
 |---|---|
 | Agent-JSON fehlt | Task lief als SYSTEM gegen `G:` → auf UNC umstellen; Share-ACL für `Domänen-Computer` prüfen |

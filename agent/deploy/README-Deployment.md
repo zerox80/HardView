@@ -84,6 +84,44 @@ Get-Content "$env:ProgramData\HardView\agent\agent.log" -Tail 20
 ```
 Kein Fenster, kein Toast — der Lauf ist für den Mitarbeiter unsichtbar (stört die Arbeit nicht).
 
+### Fehler `0x1` sichtbar machen
+
+`LastTaskResult = 0x1` bedeutet nur: `powershell.exe` wurde mit Exitcode 1 beendet.
+Die eigentliche Ursache steht entweder im TaskScheduler-Eventlog, im Agent-Log oder - wenn
+PowerShell das Skript gar nicht erst startet - in einem Diagnose-Wrapper.
+
+```powershell
+# TaskScheduler-Events fuer diesen Task aus den letzten 2 Stunden:
+Get-WinEvent -FilterHashtable @{
+  LogName   = 'Microsoft-Windows-TaskScheduler/Operational'
+  StartTime = (Get-Date).AddHours(-2)
+} | Where-Object {
+  $_.Message -like '*\HardView\HardwareInventar*'
+} | Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-List
+
+# Agent-Log, falls Invoke-Inventory.ps1 bereits gestartet wurde:
+Get-Content "$env:ProgramData\HardView\agent\agent.log" -Tail 80
+```
+
+Fuer einen lokalen Test-PC kann der Installer den Task temporaer mit Debug-Logging registrieren:
+
+```powershell
+# Labortest mit unsigniertem Skript:
+.\Install-InventoryTask.ps1 -ExecutionPolicy RemoteSigned -AllowUnsignedForTest -OutputDir "$env:TEMP\inv" -DebugLog
+
+# Produktivnaher Test mit signiertem Skript und echtem Share:
+.\Install-InventoryTask.ps1 -ScriptPath "\\YOUR_DOMAIN.local\NETLOGON\HardView\Invoke-Inventory.ps1" -OutputDir "\\FILESERVER\Inventory$\incoming" -DebugLog
+
+Start-ScheduledTask -TaskName 'HardwareInventar' -TaskPath '\HardView\'
+Start-Sleep -Seconds 10
+Get-ScheduledTaskInfo -TaskName 'HardwareInventar' -TaskPath '\HardView\'
+Get-Content "$env:ProgramData\HardView\agent\task-debug.log" -Tail 160
+```
+
+Der Debug-Wrapper laeuft weiterhin als SYSTEM und protokolliert Identitaet, PowerShell-Version,
+Skriptpfad, Zielordner, Verbose-Ausgaben und die vollstaendige PowerShell-Exception. Nach der
+Fehlersuche den Task wieder ohne `-DebugLog` registrieren.
+
 ## 6. Erzwungen: Skript signieren (+ `AllSigned`)
 
 Da der Agent als **SYSTEM** aus einer Netzwerkfreigabe läuft, sollte seine Integrität erzwungen

@@ -32,8 +32,14 @@
 .PARAMETER AllowUnsignedForTest
     Erlaubt RemoteSigned nur fuer lokale Labortests mit unsigniertem Agent-Skript.
 
+.PARAMETER DebugLog
+    Registriert den Task mit einem Diagnose-Wrapper, der stdout/stderr/Verbose und
+    Terminierungsfehler nach DebugLogPath schreibt. Nur zur Fehlersuche verwenden.
+
 .EXAMPLE
     .\Install-InventoryTask.ps1 -OutputDir '\\fileserver\Inventory$\incoming'
+.EXAMPLE
+    .\Install-InventoryTask.ps1 -ExecutionPolicy RemoteSigned -AllowUnsignedForTest -OutputDir "$env:TEMP\inv" -DebugLog
 .EXAMPLE
     .\Install-InventoryTask.ps1 -Uninstall
 #>
@@ -49,10 +55,17 @@ param(
     [ValidateSet('AllSigned','RemoteSigned')]
     [string]   $ExecutionPolicy = 'AllSigned',
     [switch]   $AllowUnsignedForTest,
+    [switch]   $DebugLog,
+    [string]   $DebugLogPath = (Join-Path $env:ProgramData 'HardView\agent\task-debug.log'),
     [switch]   $Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
+
+function ConvertTo-SingleQuotedLiteral {
+    param([Parameter(Mandatory)] [string] $Value)
+    return "'" + ($Value -replace "'", "''") + "'"
+}
 
 if ($Uninstall) {
     Unregister-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -Confirm:$false -ErrorAction SilentlyContinue
@@ -64,8 +77,8 @@ if (-not (Test-Path -LiteralPath $ScriptPath)) {
     throw "Agent-Skript nicht gefunden: $ScriptPath"
 }
 
-if ($ScriptPath -match '"|[\x00-\x1F]' -or $OutputDir -match '"|[\x00-\x1F]') {
-    throw 'ScriptPath und OutputDir duerfen keine Anfuehrungszeichen oder Steuerzeichen enthalten.'
+if ($ScriptPath -match '"|[\x00-\x1F]' -or $OutputDir -match '"|[\x00-\x1F]' -or $DebugLogPath -match '"|[\x00-\x1F]') {
+    throw 'ScriptPath, OutputDir und DebugLogPath duerfen keine Anfuehrungszeichen oder Steuerzeichen enthalten.'
 }
 
 # Der Task laeuft als SYSTEM aus einer Netzwerkfreigabe; AllSigned ist deshalb
@@ -79,8 +92,6 @@ if ($ExecutionPolicy -eq 'AllSigned') {
     throw 'RemoteSigned ist nur mit -AllowUnsignedForTest erlaubt.'
 }
 
-$arg = '-NoProfile -NonInteractive -ExecutionPolicy {0} -WindowStyle Hidden -File "{1}" -OutputDir "{2}"' -f $ExecutionPolicy, $ScriptPath, $OutputDir
-
 $windowsDir = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Windows)
 if ([string]::IsNullOrWhiteSpace($windowsDir)) {
     throw 'Windows-Verzeichnis konnte nicht ermittelt werden.'
@@ -88,6 +99,54 @@ if ([string]::IsNullOrWhiteSpace($windowsDir)) {
 $powerShellPath = Join-Path $windowsDir 'System32\WindowsPowerShell\v1.0\powershell.exe'
 if (-not (Test-Path -LiteralPath $powerShellPath)) {
     throw "PowerShell nicht gefunden: $powerShellPath"
+}
+
+if ($DebugLog) {
+    $scriptLiteral = ConvertTo-SingleQuotedLiteral $ScriptPath
+    $outputLiteral = ConvertTo-SingleQuotedLiteral $OutputDir
+    $logLiteral = ConvertTo-SingleQuotedLiteral $DebugLogPath
+    $debugCommand = @"
+`$ErrorActionPreference = 'Stop'
+`$VerbosePreference = 'Continue'
+`$DebugPreference = 'Continue'
+`$scriptPath = $scriptLiteral
+`$outputDir = $outputLiteral
+`$log = $logLiteral
+
+function Add-HardViewDebugLog {
+    param([AllowNull()] `$Value)
+    try {
+        `$text = if (`$null -eq `$Value) { '<null>' } else { [string] `$Value }
+        Add-Content -LiteralPath `$log -Value `$text -Encoding UTF8
+    } catch { }
+}
+
+try {
+    `$logDir = Split-Path -Parent `$log
+    if (-not [string]::IsNullOrWhiteSpace(`$logDir)) {
+        New-Item -ItemType Directory -Path `$logDir -Force | Out-Null
+    }
+    Add-HardViewDebugLog ('=== HardView inventory task debug {0} ===' -f (Get-Date).ToString('o'))
+    Add-HardViewDebugLog ('Identity  : {0}' -f [System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+    Add-HardViewDebugLog ('ScriptPath: {0}' -f `$scriptPath)
+    Add-HardViewDebugLog ('OutputDir : {0}' -f `$outputDir)
+    Add-HardViewDebugLog ('PSVersion : {0}' -f `$PSVersionTable.PSVersion)
+    & `$scriptPath -OutputDir `$outputDir -Verbose *>&1 | ForEach-Object {
+        Add-HardViewDebugLog ([string] `$_)
+    }
+    Add-HardViewDebugLog 'ExitCode  : 0'
+    exit 0
+} catch {
+    Add-HardViewDebugLog ('ERROR     : {0}' -f `$_.Exception.Message)
+    Add-HardViewDebugLog (`$_ | Format-List * -Force | Out-String)
+    if (`$_.ScriptStackTrace) { Add-HardViewDebugLog ([string] `$_.ScriptStackTrace) }
+    exit 1
+}
+"@
+    $encodedDebugCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($debugCommand))
+    $arg = '-NoProfile -NonInteractive -ExecutionPolicy {0} -WindowStyle Hidden -EncodedCommand {1}' -f $ExecutionPolicy, $encodedDebugCommand
+} else {
+    $arg = '-NoProfile -NonInteractive -ExecutionPolicy {0} -WindowStyle Hidden -File "{1}" -OutputDir "{2}"' -f $ExecutionPolicy, $ScriptPath, $OutputDir
 }
 
 $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument $arg
@@ -113,6 +172,9 @@ Register-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath `
 Write-Host "Aufgabe '$TaskPath$TaskName' registriert."
 Write-Host ("  Skript : {0}" -f $ScriptPath)
 Write-Host ("  Ziel   : {0}" -f $OutputDir)
+if ($DebugLog) {
+    Write-Host ("  Debug  : {0}" -f $DebugLogPath)
+}
 Write-Host ("  Lauf   : {0} {1} (+ bis {2}h Zufallsverzoegerung), Kontext SYSTEM, ohne Fenster" -f $DayOfWeek, $At.ToString('HH:mm'), $RandomDelayHours)
 Write-Host ""
 Write-Host "Sofort testen:  Start-ScheduledTask -TaskName '$TaskName' -TaskPath '$TaskPath'"
