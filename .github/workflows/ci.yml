@@ -24,9 +24,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            app/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('app/src-tauri/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          key: ${{ runner.os }}-cargo-deps-${{ hashFiles('app/src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-deps-
 
       - name: Format pruefen
         run: cargo fmt --all -- --check
@@ -112,11 +111,10 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            app/src-tauri/target
-          key: ${{ runner.os }}-tauri-build-${{ hashFiles('app/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-tauri-deps-${{ hashFiles('app/src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-tauri-build-
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-tauri-deps-
+            ${{ runner.os }}-cargo-deps-
 
       - name: Frontend-Abhaengigkeiten installieren
         working-directory: app
