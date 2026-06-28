@@ -91,7 +91,7 @@ jobs:
           while IFS= read -r file; do
             lines=$(wc -l < "$file")
             if [ "$lines" -gt "$limit" ]; then
-              echo "::error file=$file::${lines} lines exceed ${limit}"
+              echo "::error file=$file::${file}: ${lines} lines exceed ${limit}"
               failed=1
             fi
           done < <(git ls-files '*.rs' '*.js' '*.css' '*.html')
