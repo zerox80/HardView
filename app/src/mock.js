@@ -33,7 +33,7 @@
   function hashColor(s) { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return PALETTE[n % PALETTE.length]; }
   function initials(f, l) { return ((f || '?')[0] + (l || '?')[0]).toUpperCase(); }
   function osShort(os, b) { const w = os.includes('11') ? 'Win 11' : os.includes('10') ? 'Win 10' : os; const map = { '22631':'23H2','22621':'22H2','19045':'22H2','19044':'21H2','26100':'24H2','26200':'25H2' }; return w + (map[b] ? ' ' + map[b] : ''); }
-  function lastSeen(days) { if (days == null) return '—'; if (days < 1) return 'gerade eben'; if (days === 1) return 'vor 1 Tag'; return 'vor ' + days + ' Tagen'; }
+  function lastSeen(days) { if (days == null) return '—'; if (days < -1) return 'Zeitstempel in Zukunft'; if (days < 1) return 'gerade eben'; if (days === 1) return 'vor 1 Tag'; return 'vor ' + days + ' Tagen'; }
   // Deutsche Dezimaldarstellung, 1 Nachkommastelle — spiegelt fmt_de() aus upgrade.rs.
   function fmtDe(v) { return Number(v).toFixed(1).replace('.', ','); }
   function intAtLeast(value, fallback, min) {
@@ -71,7 +71,10 @@
     if (f.cpuCores > 0 && f.cpuCores < th.minCpuCores) reasons.push('CPU schwach (' + f.cpuCores + ' Kerne)');
     if (th.minCpuClockMhz > 0 && f.cpuClockMhz > 0 && f.cpuClockMhz < th.minCpuClockMhz) reasons.push('CPU-Takt niedrig (' + f.cpuClockMhz + ' MHz)');
     if (!f.osIsWin11) reasons.push('Kein Windows 11 (Win 10 EOL)');
-    if (f.lastSeenDays != null && f.lastSeenDays > th.staleDays) return { status: 'stale', statusLabel: 'Veraltet · Agent meldet nicht', reasons };
+    const futureTimestamp = f.lastSeenDays != null && f.lastSeenDays < -1;
+    if (futureTimestamp || (f.lastSeenDays != null && f.lastSeenDays > th.staleDays)) {
+      return { status: 'stale', statusLabel: futureTimestamp ? 'Unplausibel · Zeitstempel in Zukunft' : 'Veraltet · Agent meldet nicht', reasons };
+    }
     if (reasons.length) return { status: 'upgrade', statusLabel: 'Upgrade empfohlen', reasons };
     return { status: 'ok', statusLabel: 'Aktuell · OK', reasons };
   }

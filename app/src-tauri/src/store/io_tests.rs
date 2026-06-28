@@ -170,6 +170,7 @@ fn mixed_ssd_hdd_is_not_treated_as_full_ssd() {
         Path::new(&cfg.data_dir).join("WS-MIX-01.json"),
         format!(
             r#"{{
+  "schemaVersion": 1,
   "hostname": "WS-MIX-01",
   "collectedAtUtc": "{}",
   "ageYears": 1.0,

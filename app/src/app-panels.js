@@ -150,7 +150,7 @@
         return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
       };
       const floatValue = (input, fallback, min) => {
-        const parsed = parseFloat(input.value);
+        const parsed = parseFloat(input.value.replace(',', '.'));
         return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
       };
       const config = {

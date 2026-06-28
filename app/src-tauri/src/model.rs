@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Inventory {
+    pub schema_version: Option<i64>,
     pub hostname: Option<String>,
     pub collected_at_utc: Option<String>,
     pub current_user: Option<String>,
