@@ -75,10 +75,11 @@ pub(super) fn last_seen_text(days: Option<i64>) -> String {
     }
 }
 /// Leitet die Abteilung aus dem Hostnamen ab (Schema WS-<ABT>-NN).
-/// Heuristik (Schema WS-<ABT>-NN); per AD-Department spaeter ueberschreibbar.
+/// Vergleicht je Hostname-Segment exakt (nicht per Substring), damit z. B.
+/// "WS-SECURITY-01" nicht faelschlich als IT klassifiziert wird ("SECURITY"
+/// enthaelt "IT"). Per AD-Department spaeter ueberschreibbar.
 pub(super) fn dept_from_host(host: &str) -> String {
-    let up = host.to_uppercase();
-    let map = [
+    const MAP: [(&str, &str); 9] = [
         ("BUCH", "Buchhaltung"),
         ("VERTRIEB", "Vertrieb"),
         ("MARKETING", "Marketing"),
@@ -89,9 +90,15 @@ pub(super) fn dept_from_host(host: &str) -> String {
         ("IT", "IT"),
         ("GF", "Geschäftsführung"),
     ];
-    for (key, name) in map {
-        if up.contains(key) {
-            return name.to_string();
+    let up = host.to_uppercase();
+    for token in up.split(|c: char| !c.is_ascii_alphanumeric()) {
+        if token.is_empty() {
+            continue;
+        }
+        for (key, name) in MAP {
+            if token == key {
+                return name.to_string();
+            }
         }
     }
     "Allgemein".to_string()

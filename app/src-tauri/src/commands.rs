@@ -16,6 +16,11 @@ pub struct Inner {
 
 pub struct AppState {
     pub inner: Mutex<Inner>,
+    /// Serialisiert AD-Abfragen, damit nebenlaeufige Aufrufe nicht mehrere
+    /// PowerShell-Prozesse starten. Lock-Reihenfolge ist strikt `ad_fetch` vor
+    /// `inner` (nie umgekehrt) -> deadlockfrei. `inner` wird darunter nur kurz
+    /// fuer Cache-Pruefung/-Update gehalten, nie ueber den Fetch hinweg.
+    pub ad_fetch: Mutex<()>,
 }
 
 impl AppState {
@@ -26,6 +31,7 @@ impl AppState {
                 devices: None,
                 ad: None,
             }),
+            ad_fetch: Mutex::new(()),
         }
     }
 }
@@ -65,37 +71,59 @@ pub fn get_overview(state: State<AppState>) -> Result<Overview, String> {
 pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser>, String> {
     let q = search.to_lowercase();
 
-    let (ad_enabled, cached, needs_fetch) = {
+    // Snapshot unter dem State-Lock: AD aktiv und liegt ein frischer Cache vor?
+    let (mut users, needs_fetch) = {
         let inner = state.inner.lock().map_err(|e| e.to_string())?;
         if inner.config.ad_enabled {
-            let fresh = matches!(&inner.ad, Some((t, _)) if t.elapsed() < AD_TTL);
-            let cached = inner.ad.as_ref().map(|(_, list)| list.clone());
-            (true, if fresh { cached.clone() } else { None }, !fresh)
+            match &inner.ad {
+                Some((t, list)) if t.elapsed() < AD_TTL => (list.clone(), false),
+                _ => (Vec::new(), true),
+            }
         } else {
-            (false, None, false)
+            (Vec::new(), false)
         }
     };
 
-    // 1) AD aktiviert -> echtes Lookup mit Cache. Der externe Prozess laeuft
-    // bewusst ohne globalen State-Lock, damit die App bedienbar bleibt.
-    let mut users: Vec<AdUser> = cached.unwrap_or_default();
-    if ad_enabled && needs_fetch {
-        match ad::fetch_ad_users() {
-            Ok(list) => {
-                let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
-                if inner.config.ad_enabled {
-                    inner.ad = Some((Instant::now(), list.clone()));
-                    users = list;
+    // 1) AD aktiviert und Cache abgelaufen -> echtes Lookup. Die Abfragen werden
+    // ueber `ad_fetch` serialisiert, damit nebenlaeufige Aufrufe nicht mehrere
+    // PowerShell-Prozesse starten; Wartende uebernehmen den frisch gefuellten Cache.
+    // Der externe Prozess laeuft bewusst ohne den globalen State-Lock.
+    if needs_fetch {
+        let _fetch_guard = state.ad_fetch.lock().map_err(|e| e.to_string())?;
+
+        // Doppelpruefung: ein anderer Aufruf koennte den Cache inzwischen gefuellt
+        // (oder AD deaktiviert) haben, waehrend wir auf den Fetch-Lock gewartet haben.
+        let refreshed = {
+            let inner = state.inner.lock().map_err(|e| e.to_string())?;
+            if !inner.config.ad_enabled {
+                Some(Vec::new())
+            } else if let Some((t, list)) = &inner.ad {
+                if t.elapsed() < AD_TTL {
+                    Some(list.clone())
                 } else {
-                    users.clear();
+                    None
                 }
+            } else {
+                None
             }
-            Err(_) => {
-                let inner = state.inner.lock().map_err(|e| e.to_string())?;
-                if let Some((_, list)) = &inner.ad {
-                    users = list.clone();
+        };
+        match refreshed {
+            Some(list) => users = list,
+            None => match ad::fetch_ad_users() {
+                Ok(list) => {
+                    let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
+                    if inner.config.ad_enabled {
+                        inner.ad = Some((Instant::now(), list.clone()));
+                        users = list;
+                    }
                 }
-            }
+                Err(_) => {
+                    let inner = state.inner.lock().map_err(|e| e.to_string())?;
+                    if let Some((_, list)) = &inner.ad {
+                        users = list.clone();
+                    }
+                }
+            },
         }
     }
 
@@ -109,7 +137,7 @@ pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser
                 continue;
             }
             let sam = if d.user_sam.is_empty() {
-                d.user_display.to_lowercase().replace(' ', ".")
+                synth_sam(&d.user_display)
             } else {
                 d.user_sam.clone()
             };
@@ -210,62 +238,34 @@ pub fn me() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub fn export_devices(state: State<AppState>, format: String) -> Result<serde_json::Value, String> {
-    let _ = format; // aktuell nur CSV
+    if !format.trim().eq_ignore_ascii_case("csv") {
+        return Err(format!("Nicht unterstütztes Exportformat: {}", format));
+    }
     let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
     let devs = ensure_devices(&mut inner).clone();
+    drop(inner);
 
-    let mut csv = String::from(
-        "Hostname;Benutzer;Quelle;Abteilung;Status;Begruendungen;CPU;Kerne;RAM_GB;Datentraeger;Groesse_GB;Alter_Jahre;Betriebssystem;Letzte_Inventarisierung;Seriennummer;Modell\r\n",
-    );
-    // CSV-Härtung: jedes Feld wird zitiert (RFC 4180) und gegen Formel-Injection
-    // abgesichert. Werte stammen z. T. aus nicht vertrauenswürdigen Agent-JSONs;
-    // ein führendes = + - @ (oder Tab) würde Excel/Calc als Formel auswerten
-    // (DDE → Codeausführung auf dem IT-Arbeitsplatz beim Öffnen des Exports).
-    let esc = |s: &str| {
-        let cleaned = s.replace(['\r', '\n'], " ");
-        let guarded = if cleaned.starts_with(['=', '+', '-', '@', '\t']) {
-            format!("'{}", cleaned)
-        } else {
-            cleaned
-        };
-        format!("\"{}\"", guarded.replace('"', "\"\""))
-    };
-    for d in &devs {
-        csv.push_str(&format!(
-            "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\r\n",
-            esc(&d.host),
-            esc(&d.user_display),
-            esc(&d.user_source),
-            esc(&d.dept),
-            esc(&d.status_label),
-            esc(&d.upgrade_reasons.join(" | ")),
-            esc(&d.cpu),
-            d.cores,
-            d.ram_gb,
-            esc(&d.disk_type),
-            d.disk_gb,
-            d.age_years
-                .map(|a| format!("{:.1}", a).replace('.', ","))
-                .unwrap_or_default(),
-            esc(&d.os_caption),
-            esc(&d.last_seen_text),
-            esc(&d.serial_number),
-            esc(&format!("{} {}", d.manufacturer, d.model)),
-        ));
+    let (file, rows) = crate::export::write_devices_csv(&devs)?;
+    Ok(serde_json::json!({ "ok": true, "path": file.to_string_lossy(), "rows": rows }))
+}
+
+/// Leitet aus einem Anzeigenamen einen plausiblen SAM-Account ab — nur als
+/// CSV-Fallback, wenn kein AD verfuegbar ist. Deutsche Umlaute werden
+/// transliteriert, damit der Wert ASCII-stabil und deterministisch bleibt.
+fn synth_sam(display: &str) -> String {
+    let mut sam = String::new();
+    for ch in display.chars() {
+        match ch {
+            'ä' | 'Ä' => sam.push_str("ae"),
+            'ö' | 'Ö' => sam.push_str("oe"),
+            'ü' | 'Ü' => sam.push_str("ue"),
+            'ß' => sam.push_str("ss"),
+            ' ' => sam.push('.'),
+            c if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') => sam.push(c),
+            _ => {}
+        }
     }
-
-    let docs = std::env::var("USERPROFILE")
-        .map(|p| std::path::Path::new(&p).join("Documents"))
-        .unwrap_or_else(|_| std::env::temp_dir());
-    let _ = std::fs::create_dir_all(&docs);
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let file = docs.join(format!("HardView-Export-{}.csv", stamp));
-    // CSV als UTF-8 mit BOM, damit Excel Umlaute korrekt anzeigt
-    let mut bytes = vec![0xEF, 0xBB, 0xBF];
-    bytes.extend_from_slice(csv.as_bytes());
-    std::fs::write(&file, bytes).map_err(|e| format!("Export fehlgeschlagen: {}", e))?;
-
-    Ok(serde_json::json!({ "ok": true, "path": file.to_string_lossy(), "rows": devs.len() }))
+    sam.to_lowercase()
 }
 
 fn current_user_domain() -> (String, String) {
@@ -280,4 +280,28 @@ fn current_user_domain() -> (String, String) {
         user
     );
     (full, domain)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::synth_sam;
+
+    #[test]
+    fn synth_sam_transliterates_umlauts() {
+        // Umlaute/ß werden ASCII-transliteriert, Leerzeichen -> Punkt, alles lower-case.
+        assert_eq!(synth_sam("Jürgen Müller"), "juergen.mueller");
+        assert_eq!(synth_sam("Björn Öztürk"), "bjoern.oeztuerk");
+        assert_eq!(synth_sam("Weiß"), "weiss");
+        assert_eq!(synth_sam("Änne Ärmel"), "aenne.aermel");
+    }
+
+    #[test]
+    fn synth_sam_filters_unsupported_chars_and_is_deterministic() {
+        // Nicht erlaubte Zeichen (Apostroph, Klammern, sonstige Akzente) fallen weg;
+        // erlaubt bleiben ASCII-Alphanumerik plus '.', '-', '_'.
+        assert_eq!(synth_sam("O'Brien"), "obrien");
+        assert_eq!(synth_sam("Anna-Lena_K (Gast)"), "anna-lena_k.gast");
+        // Deterministisch: gleicher Input -> gleicher Output.
+        assert_eq!(synth_sam("Test User"), synth_sam("Test User"));
+    }
 }

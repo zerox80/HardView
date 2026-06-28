@@ -41,9 +41,11 @@ jobs:
         run: |
           $files = @(
             '../../agent/Invoke-Inventory.ps1',
+            '../../agent/Invoke-InventoryDebug.ps1',
             '../../agent/deploy/Install-InventoryTask.ps1',
             '../../agent/deploy/Remove-StaleInventory.ps1',
-            '../../shared/sample-data/New-SampleData.ps1'
+            '../../shared/sample-data/New-SampleData.ps1',
+            'scripts/Get-AdUsers.ps1'
           )
           foreach ($file in $files) {
             $resolved = Resolve-Path $file
@@ -70,6 +72,10 @@ jobs:
         working-directory: app
         run: npm run check
 
+      - name: Frontend-Parity-Tests (mock.js vs. Backend)
+        working-directory: app
+        run: npm test
+
   source-limits:
     name: Source-Line-Limits
     runs-on: ubuntu-latest
@@ -90,6 +96,21 @@ jobs:
             fi
           done < <(git ls-files '*.rs' '*.js' '*.css' '*.html')
           exit "$failed"
+
+  audit:
+    name: Dependency-Audit (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: cargo-audit installieren
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Sicherheits-Advisories pruefen
+        working-directory: app/src-tauri
+        run: cargo audit
 
   build:
     name: Tauri-Build (Windows)
