@@ -256,7 +256,7 @@ pub fn export_devices(state: State<AppState>, format: String) -> Result<serde_js
 /// Leitet aus einem Anzeigenamen einen plausiblen SAM-Account ab — nur als
 /// CSV-Fallback, wenn kein AD verfuegbar ist. Deutsche Umlaute werden
 /// transliteriert, damit der Wert ASCII-stabil und deterministisch bleibt.
-fn synth_sam(display: &str) -> String {
+pub(crate) fn synth_sam(display: &str) -> String {
     let mut sam = String::new();
     for ch in display.chars() {
         match ch {
@@ -284,28 +284,4 @@ fn current_user_domain() -> (String, String) {
         user
     );
     (full, domain)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::synth_sam;
-
-    #[test]
-    fn synth_sam_transliterates_umlauts() {
-        // Umlaute/ß werden ASCII-transliteriert, Leerzeichen -> Punkt, alles lower-case.
-        assert_eq!(synth_sam("Jürgen Müller"), "juergen.mueller");
-        assert_eq!(synth_sam("Björn Öztürk"), "bjoern.oeztuerk");
-        assert_eq!(synth_sam("Weiß"), "weiss");
-        assert_eq!(synth_sam("Änne Ärmel"), "aenne.aermel");
-    }
-
-    #[test]
-    fn synth_sam_filters_unsupported_chars_and_is_deterministic() {
-        // Nicht erlaubte Zeichen (Apostroph, Klammern, sonstige Akzente) fallen weg;
-        // erlaubt bleiben ASCII-Alphanumerik plus '.', '-', '_'.
-        assert_eq!(synth_sam("O'Brien"), "obrien");
-        assert_eq!(synth_sam("Anna-Lena_K (Gast)"), "anna-lena_k.gast");
-        // Deterministisch: gleicher Input -> gleicher Output.
-        assert_eq!(synth_sam("Test User"), synth_sam("Test User"));
-    }
 }

@@ -6,6 +6,8 @@ mod store;
 mod upgrade;
 
 #[cfg(test)]
+mod commands_tests;
+#[cfg(test)]
 mod golden_tests;
 
 use commands::AppState;
