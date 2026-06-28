@@ -1,8 +1,83 @@
+use super::common::dept_from_host;
 use super::config::{app_config_dir, validate_config};
 use super::inventory::read_inventory_dir;
 use super::test_support::{count, sample_config, sample_data_dir};
 use super::{build_devices, build_overview};
+use crate::model::Inventory;
 use std::fs;
+
+/// Sichert den Agent-Ausgabekontrakt: jede Sample-JSON erfuellt die Pflichtfelder
+/// aus shared/schema/inventory.schema.json, der Hostname passt zum Dateinamen und
+/// die Datei deserialisiert in das Backend-Modell (kein stiller Drift Agent <-> App).
+#[test]
+fn sample_inventory_files_conform_to_schema() {
+    let dir = sample_data_dir().join("Inventory");
+    let mut checked = 0;
+    for entry in fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let stem = path.file_stem().unwrap().to_string_lossy().to_string();
+        let txt = fs::read_to_string(&path).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&txt)
+            .unwrap_or_else(|e| panic!("{}: kein gueltiges JSON: {}", stem, e));
+
+        // Pflichtfelder laut Schema (required: schemaVersion/hostname/collectedAtUtc).
+        assert_eq!(
+            json["schemaVersion"],
+            serde_json::json!(1),
+            "{}: schemaVersion",
+            stem
+        );
+        assert!(
+            json["collectedAtUtc"].is_string(),
+            "{}: collectedAtUtc fehlt",
+            stem
+        );
+        let host = json["hostname"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{}: hostname fehlt", stem));
+        assert!(
+            host.eq_ignore_ascii_case(&stem),
+            "{}: hostname != Dateiname",
+            stem
+        );
+
+        // Muss in das Backend-Modell passen und die mediaType-Enum-Domaene einhalten.
+        let _inv: Inventory = serde_json::from_str(&txt)
+            .unwrap_or_else(|e| panic!("{}: passt nicht zu Inventory: {}", stem, e));
+        if let Some(disks) = json["disks"].as_array() {
+            for d in disks {
+                if let Some(mt) = d["mediaType"].as_str() {
+                    assert!(
+                        matches!(mt, "SSD" | "HDD" | "SCM" | "Unbekannt"),
+                        "{}: ungueltiger mediaType {}",
+                        stem,
+                        mt
+                    );
+                }
+            }
+        }
+        checked += 1;
+    }
+    assert!(
+        checked >= 16,
+        "mind. 16 Sample-JSONs erwartet, geprueft: {}",
+        checked
+    );
+}
+
+#[test]
+fn dept_from_host_matches_exact_tokens() {
+    assert_eq!(dept_from_host("WS-IT-07"), "IT");
+    assert_eq!(dept_from_host("WS-MARKETING-04"), "Marketing");
+    assert_eq!(dept_from_host("WS-GF-01"), "Geschäftsführung");
+    // Regression: "SECURITY" enthaelt "IT", darf aber nicht als IT gelten.
+    assert_eq!(dept_from_host("WS-SECURITY-01"), "Allgemein");
+    // Kein bekanntes Segment -> Allgemein.
+    assert_eq!(dept_from_host("LAPTOP-123"), "Allgemein");
+}
 
 #[test]
 fn merge_and_classify_sample_data() {

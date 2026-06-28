@@ -1,0 +1,65 @@
+{
+  "_comment": "Geteilte Golden-Vectors fuer die Geraetebewertung. Werden vom Rust-Backend (upgrade.rs, golden_tests.rs) UND vom Frontend-Mock (mock.js, app/tests/upgrade-parity.test.js) gegen exakt dieselben Erwartungen geprueft, damit beide Implementierungen nicht auseinanderdriften. upgrade.rs ist die Quelle der Wahrheit.",
+  "thresholds": {
+    "minRamGB": 8,
+    "maxAgeYears": 5,
+    "staleDays": 30,
+    "requireSsd": true,
+    "minCpuCores": 4,
+    "minCpuClockMhz": 1500,
+    "targetRamGB": 16
+  },
+  "cases": [
+    {
+      "name": "modernes-geraet-ok",
+      "facts": { "hasInventory": true, "ramGB": 32, "ageYears": 1.5, "diskIsSsd": true, "cpuCores": 8, "cpuClockMhz": 3200, "osIsWin11": true, "lastSeenDays": 2 },
+      "status": "ok",
+      "reasons": []
+    },
+    {
+      "name": "alles-mangelhaft-upgrade",
+      "facts": { "hasInventory": true, "ramGB": 8, "ageYears": 6.0, "diskIsSsd": false, "cpuCores": 2, "cpuClockMhz": 1200, "osIsWin11": false, "lastSeenDays": 3 },
+      "status": "upgrade",
+      "reasons": [
+        "Gerät alt (6,0 Jahre)",
+        "RAM knapp (8 GB)",
+        "HDD statt SSD",
+        "CPU schwach (2 Kerne)",
+        "CPU-Takt niedrig (1200 MHz)",
+        "Kein Windows 11 (Win 10 EOL)"
+      ]
+    },
+    {
+      "name": "stale-behaelt-begruendungen",
+      "facts": { "hasInventory": true, "ramGB": 8, "ageYears": 6.7, "diskIsSsd": false, "cpuCores": 4, "cpuClockMhz": 2000, "osIsWin11": false, "lastSeenDays": 90 },
+      "status": "stale",
+      "reasons": [
+        "Gerät alt (6,7 Jahre)",
+        "RAM knapp (8 GB)",
+        "HDD statt SSD",
+        "Kein Windows 11 (Win 10 EOL)"
+      ]
+    },
+    {
+      "name": "kein-inventar-missing",
+      "facts": { "hasInventory": false, "ramGB": 0, "ageYears": null, "diskIsSsd": false, "cpuCores": 0, "cpuClockMhz": 0, "osIsWin11": false, "lastSeenDays": null },
+      "status": "missing",
+      "reasons": ["Kein Inventar — Agent hat noch nie gemeldet"]
+    },
+    {
+      "name": "nullwerte-ueberspringen-regeln",
+      "facts": { "hasInventory": true, "ramGB": 0, "ageYears": null, "diskIsSsd": true, "cpuCores": 0, "cpuClockMhz": 0, "osIsWin11": true, "lastSeenDays": 0 },
+      "status": "ok",
+      "reasons": []
+    },
+    {
+      "name": "ssd-aber-altes-win10",
+      "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 5.5, "diskIsSsd": true, "cpuCores": 6, "cpuClockMhz": 2600, "osIsWin11": false, "lastSeenDays": 10 },
+      "status": "upgrade",
+      "reasons": [
+        "Gerät alt (5,5 Jahre)",
+        "Kein Windows 11 (Win 10 EOL)"
+      ]
+    }
+  ]
+}

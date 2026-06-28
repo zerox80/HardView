@@ -1,8 +1,12 @@
 mod ad;
 mod commands;
+mod export;
 mod model;
 mod store;
 mod upgrade;
+
+#[cfg(test)]
+mod golden_tests;
 
 use commands::AppState;
 

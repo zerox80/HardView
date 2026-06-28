@@ -34,6 +34,8 @@
   function initials(f, l) { return ((f || '?')[0] + (l || '?')[0]).toUpperCase(); }
   function osShort(os, b) { const w = os.includes('11') ? 'Win 11' : os.includes('10') ? 'Win 10' : os; const map = { '22631':'23H2','22621':'22H2','19045':'22H2','19044':'21H2','26100':'24H2','26200':'25H2' }; return w + (map[b] ? ' ' + map[b] : ''); }
   function lastSeen(days) { if (days == null) return '—'; if (days < 1) return 'gerade eben'; if (days === 1) return 'vor 1 Tag'; return 'vor ' + days + ' Tagen'; }
+  // Deutsche Dezimaldarstellung, 1 Nachkommastelle — spiegelt fmt_de() aus upgrade.rs.
+  function fmtDe(v) { return Number(v).toFixed(1).replace('.', ','); }
   function intAtLeast(value, fallback, min) {
     const parsed = parseInt(value, 10);
     return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
@@ -55,24 +57,38 @@
     };
   }
 
+  // Bewertung eines Geraets aus zusammengefuehrten Fakten. Spiegelt evaluate() aus
+  // upgrade.rs exakt (inkl. Reihenfolge, "> 0"-Schutz und Begruendungstexte).
+  // Geteilte Golden-Vectors stellen die Parity sicher (shared/test-vectors).
+  function evaluate(th, f) {
+    if (!f.hasInventory) {
+      return { status: 'missing', statusLabel: 'Kein Inventar', reasons: ['Kein Inventar — Agent hat noch nie gemeldet'] };
+    }
+    const reasons = [];
+    if (f.ageYears != null && f.ageYears > th.maxAgeYears) reasons.push('Gerät alt (' + fmtDe(f.ageYears) + ' Jahre)');
+    if (f.ramGB > 0 && f.ramGB <= th.minRamGB) reasons.push('RAM knapp (' + f.ramGB + ' GB)');
+    if (th.requireSsd && !f.diskIsSsd) reasons.push('HDD statt SSD');
+    if (f.cpuCores > 0 && f.cpuCores < th.minCpuCores) reasons.push('CPU schwach (' + f.cpuCores + ' Kerne)');
+    if (th.minCpuClockMhz > 0 && f.cpuClockMhz > 0 && f.cpuClockMhz < th.minCpuClockMhz) reasons.push('CPU-Takt niedrig (' + f.cpuClockMhz + ' MHz)');
+    if (!f.osIsWin11) reasons.push('Kein Windows 11 (Win 10 EOL)');
+    if (f.lastSeenDays != null && f.lastSeenDays > th.staleDays) return { status: 'stale', statusLabel: 'Veraltet · Agent meldet nicht', reasons };
+    if (reasons.length) return { status: 'upgrade', statusLabel: 'Upgrade empfohlen', reasons };
+    return { status: 'ok', statusLabel: 'Aktuell · OK', reasons };
+  }
+
   function compute(pc) {
     const hasInv = pc.inv;
-    const reasons = [];
-    let status, statusLabel;
-    if (!hasInv) {
-      status = 'missing'; statusLabel = 'Kein Inventar';
-      reasons.push('Kein Inventar — Agent hat noch nie gemeldet');
-    } else {
-      if (pc.age > THRESH.maxAgeYears) reasons.push('Gerät alt (' + String(pc.age).replace('.', ',') + ' Jahre)');
-      if (pc.ram <= THRESH.minRamGB) reasons.push('RAM knapp (' + pc.ram + ' GB)');
-      if (THRESH.requireSsd && pc.disk !== 'SSD') reasons.push('HDD statt SSD');
-      if (pc.c < THRESH.minCpuCores) reasons.push('CPU schwach (' + pc.c + ' Kerne)');
-      if (THRESH.minCpuClockMhz > 0 && pc.clock > 0 && pc.clock < THRESH.minCpuClockMhz) reasons.push('CPU-Takt niedrig (' + pc.clock + ' MHz)');
-      if (!pc.os.includes('11')) reasons.push('Kein Windows 11 (Win 10 EOL)');
-      if (pc.stale > THRESH.staleDays) { status = 'stale'; statusLabel = 'Veraltet · Agent meldet nicht'; }
-      else if (reasons.length) { status = 'upgrade'; statusLabel = 'Upgrade empfohlen'; }
-      else { status = 'ok'; statusLabel = 'Aktuell · OK'; }
-    }
+    const ev = evaluate(THRESH, {
+      hasInventory: hasInv,
+      ramGB: pc.ram,
+      ageYears: hasInv ? pc.age : null,
+      diskIsSsd: pc.disk === 'SSD',
+      cpuCores: pc.c,
+      cpuClockMhz: pc.clock || 0,
+      osIsWin11: pc.os.includes('11'),
+      lastSeenDays: hasInv ? pc.stale : null
+    });
+    const status = ev.status, statusLabel = ev.statusLabel, reasons = ev.reasons;
     const user = pc.f + ' ' + pc.l;
     return {
       host: pc.h, hasInventory: hasInv, status, statusLabel, upgradeReasons: reasons,
@@ -82,7 +98,7 @@
       cpu: pc.cpu, cores: pc.c, coresText: pc.c + ' Kerne / ' + pc.t + ' Threads',
       ramGB: pc.ram, ramSlotsUsed: pc.su, ramSlotsTotal: pc.st, ramFreeSlots: pc.st - pc.su, ramTargetGB: THRESH.targetRamGB,
       diskType: pc.disk, diskGB: pc.dgb, diskModel: pc.disk === 'SSD' ? 'Samsung SSD 870' : 'Seagate Barracuda',
-      ageYears: hasInv ? pc.age : null, ageText: hasInv ? (String(pc.age).replace('.', ',') + ' J.') : '—',
+      ageYears: hasInv ? pc.age : null, ageText: hasInv ? (fmtDe(pc.age) + ' J.') : '—',
       lastSeenDays: hasInv ? pc.stale : null, lastSeenText: hasInv ? lastSeen(pc.stale) : 'nie',
       osShort: osShort(pc.os, pc.b), osCaption: pc.os, osBuild: '10.0.' + pc.b,
       chassis: /ThinkPad|Carbon/.test(pc.mdl) ? 'Laptop' : 'Desktop',
@@ -169,7 +185,7 @@
     thresholds: Object.assign({}, THRESH)
   };
 
-  window.__MOCK__ = {
+  const MOCK = {
     async invoke(cmd, args) {
       await new Promise(r => setTimeout(r, 60)); // kleine Latenz wie echtes Backend
       switch (cmd) {
@@ -208,4 +224,11 @@
       }
     }
   };
+
+  // Browser: an window haengen (echte Vorschau). Node: reine Logik exportieren,
+  // damit der Parity-Test (app/tests) evaluate() gegen die Golden-Vectors prueft.
+  if (typeof window !== 'undefined') { window.__MOCK__ = MOCK; }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { evaluate, normalizeThresholds, DEFAULT_THRESHOLDS };
+  }
 })();
