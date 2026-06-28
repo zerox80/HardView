@@ -185,14 +185,16 @@ try {
 } catch {
     $script:CollectionErrors.Add(('Get-PhysicalDisk: {0}' -f $_.Exception.Message))
     $dd = Get-CimSafe -Class 'Win32_DiskDrive'
-    foreach ($d in @($dd)) {
-        $media = 'Unbekannt'
-        if ($d.Model -match 'SSD|NVMe') { $media = 'SSD' }
-        $disks += [ordered]@{
-            model     = if ($d.Model) { $d.Model.Trim() } else { $null }
-            sizeGB    = [math]::Round([int64]$d.Size / 1GB, 0)
-            mediaType = $media
-            busType   = [string]$d.InterfaceType
+    if ($dd) {
+        foreach ($d in @($dd)) {
+            $media = 'Unbekannt'
+            if ($d.Model -match 'SSD|NVMe') { $media = 'SSD' }
+            $disks += [ordered]@{
+                model     = if ($d.Model) { $d.Model.Trim() } else { $null }
+                sizeGB    = [math]::Round([int64]$d.Size / 1GB, 0)
+                mediaType = $media
+                busType   = [string]$d.InterfaceType
+            }
         }
     }
 }

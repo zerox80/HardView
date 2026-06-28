@@ -9,13 +9,14 @@ const AD_QUERY_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Fuehrt das eingebettete Skript ueber PowerShell-stdin aus.
 /// Gibt die geparste Benutzerliste zurueck (alle aktivierten User, in Rust gefiltert).
-pub fn fetch_ad_users() -> Result<Vec<AdUser>, String> {
+pub fn fetch_ad_users(search: &str) -> Result<Vec<AdUser>, String> {
     use std::io::{Read, Write};
     use std::process::Stdio;
 
     let powershell_path = system_powershell_path()?;
     let mut cmd = Command::new(powershell_path);
     cmd.args(["-NoProfile", "-NonInteractive", "-Command", "-"]);
+    cmd.env("HARDVIEW_AD_SEARCH", search);
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

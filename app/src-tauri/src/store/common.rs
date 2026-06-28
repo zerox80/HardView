@@ -69,6 +69,7 @@ pub(super) fn os_short(caption: &str, build: &str) -> String {
 pub(super) fn last_seen_text(days: Option<i64>) -> String {
     match days {
         None => "—".into(),
+        Some(d) if d < -1 => "Zeitstempel in Zukunft".into(),
         Some(d) if d < 1 => "gerade eben".into(),
         Some(1) => "vor 1 Tag".into(),
         Some(d) => format!("vor {} Tagen", d),

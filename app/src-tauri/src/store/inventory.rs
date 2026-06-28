@@ -56,6 +56,9 @@ pub fn read_inventory_dir(dir: &str) -> HashMap<String, Inventory> {
             Err(_) => continue,
         };
         if let Ok(mut inv) = serde_json::from_str::<Inventory>(&txt) {
+            if inv.schema_version != Some(1) {
+                continue;
+            }
             let Some(payload_host) = inv
                 .hostname
                 .as_deref()

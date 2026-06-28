@@ -163,17 +163,22 @@ fn inventory_reader_rejects_hostname_spoofing() {
 
     fs::write(
         dir.join("WS-GOOD-01.json"),
-        r#"{"hostname":"WS-GOOD-01","collectedAtUtc":"2026-06-24T00:00:00Z"}"#,
+        r#"{"schemaVersion":1,"hostname":"WS-GOOD-01","collectedAtUtc":"2026-06-24T00:00:00Z"}"#,
     )
     .unwrap();
     fs::write(
         dir.join("WS-EVIL-01.json"),
-        r#"{"hostname":"WS-GOOD-01","collectedAtUtc":"2026-06-24T00:00:00Z"}"#,
+        r#"{"schemaVersion":1,"hostname":"WS-GOOD-01","collectedAtUtc":"2026-06-24T00:00:00Z"}"#,
     )
     .unwrap();
     fs::write(
         dir.join("WS-MISSING-01.json"),
         r#"{"collectedAtUtc":"2026-06-24T00:00:00Z"}"#,
+    )
+    .unwrap();
+    fs::write(
+        dir.join("WS-NOVERSION-01.json"),
+        r#"{"hostname":"WS-NOVERSION-01","collectedAtUtc":"2026-06-24T00:00:00Z"}"#,
     )
     .unwrap();
 

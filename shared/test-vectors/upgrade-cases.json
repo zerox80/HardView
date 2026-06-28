@@ -84,6 +84,12 @@
       "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 6.0, "diskIsSsd": true, "cpuCores": 8, "cpuClockMhz": 3000, "osIsWin11": true, "lastSeenDays": 30 },
       "status": "upgrade",
       "reasons": ["Gerät alt (6,0 Jahre)"]
+    },
+    {
+      "name": "zukunftszeitstempel-ist-unplausibel",
+      "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 1.0, "diskIsSsd": true, "cpuCores": 8, "cpuClockMhz": 3000, "osIsWin11": true, "lastSeenDays": -3 },
+      "status": "stale",
+      "reasons": []
     }
   ]
 }

@@ -69,61 +69,65 @@ pub fn get_overview(state: State<AppState>) -> Result<Overview, String> {
 
 #[tauri::command]
 pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser>, String> {
-    let q = search.to_lowercase();
+    let query = search.trim().to_string();
+    let q = query.to_lowercase();
+    let mut users = Vec::new();
 
-    // Snapshot unter dem State-Lock: AD aktiv und liegt ein frischer Cache vor?
-    let (mut users, needs_fetch) = {
+    // AD aktiv? Leere Abfragen nutzen den Gesamtlisten-Cache, Suchabfragen gehen
+    // gezielt gegen LDAP, damit sehr grosse Directories keine Treffer abschneiden.
+    let (ad_enabled, cached_full, needs_full_fetch) = {
         let inner = state.inner.lock().map_err(|e| e.to_string())?;
         if inner.config.ad_enabled {
             match &inner.ad {
-                Some((t, list)) if t.elapsed() < AD_TTL => (list.clone(), false),
-                _ => (Vec::new(), true),
+                Some((t, list)) if t.elapsed() < AD_TTL => (true, Some(list.clone()), false),
+                _ => (true, None, q.is_empty()),
             }
         } else {
-            (Vec::new(), false)
+            (false, None, false)
         }
     };
 
-    // 1) AD aktiviert und Cache abgelaufen -> echtes Lookup. Die Abfragen werden
-    // ueber `ad_fetch` serialisiert, damit nebenlaeufige Aufrufe nicht mehrere
-    // PowerShell-Prozesse starten; Wartende uebernehmen den frisch gefuellten Cache.
-    // Der externe Prozess laeuft bewusst ohne den globalen State-Lock.
-    if needs_fetch {
-        let _fetch_guard = state.ad_fetch.lock().map_err(|e| e.to_string())?;
-
-        // Doppelpruefung: ein anderer Aufruf koennte den Cache inzwischen gefuellt
-        // (oder AD deaktiviert) haben, waehrend wir auf den Fetch-Lock gewartet haben.
-        let refreshed = {
-            let inner = state.inner.lock().map_err(|e| e.to_string())?;
-            if !inner.config.ad_enabled {
-                Some(Vec::new())
-            } else if let Some((t, list)) = &inner.ad {
-                if t.elapsed() < AD_TTL {
-                    Some(list.clone())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-        match refreshed {
-            Some(list) => users = list,
-            None => match ad::fetch_ad_users() {
-                Ok(list) => {
-                    let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
-                    if inner.config.ad_enabled {
-                        inner.ad = Some((Instant::now(), list.clone()));
+    if ad_enabled {
+        if !q.is_empty() {
+            let _fetch_guard = state.ad_fetch.lock().map_err(|e| e.to_string())?;
+            match ad::fetch_ad_users(&query) {
+                Ok(list) => users = list,
+                Err(_) => {
+                    if let Some(list) = cached_full {
                         users = list;
                     }
                 }
-                Err(_) => {
-                    let inner = state.inner.lock().map_err(|e| e.to_string())?;
-                    if let Some((_, list)) = &inner.ad {
-                        users = list.clone();
+            }
+        } else if let Some(list) = cached_full {
+            users = list;
+        } else if needs_full_fetch {
+            let _fetch_guard = state.ad_fetch.lock().map_err(|e| e.to_string())?;
+            let refreshed = {
+                let inner = state.inner.lock().map_err(|e| e.to_string())?;
+                if !inner.config.ad_enabled {
+                    Some(Vec::new())
+                } else if let Some((t, list)) = &inner.ad {
+                    if t.elapsed() < AD_TTL {
+                        Some(list.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            match refreshed {
+                Some(list) => users = list,
+                None => {
+                    if let Ok(list) = ad::fetch_ad_users("") {
+                        let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
+                        if inner.config.ad_enabled {
+                            inner.ad = Some((Instant::now(), list.clone()));
+                            users = list;
+                        }
                     }
                 }
-            },
+            }
         }
     }
 

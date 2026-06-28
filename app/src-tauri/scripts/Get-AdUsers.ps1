@@ -4,19 +4,46 @@
     Wird vom HardView-Backend (ad.rs) ohne Fenster aufgerufen.  #>
 $ErrorActionPreference = 'Stop'
 try {
+    function ConvertTo-LdapFilterValue {
+        param([AllowNull()] [string] $Value)
+
+        if ($null -eq $Value) { return '' }
+        $sb = New-Object System.Text.StringBuilder
+        foreach ($ch in $Value.ToCharArray()) {
+            $code = [int][char]$ch
+            if ($code -eq 0) { [void]$sb.Append('\00') }
+            elseif ($code -eq 40) { [void]$sb.Append('\28') }
+            elseif ($code -eq 41) { [void]$sb.Append('\29') }
+            elseif ($code -eq 42) { [void]$sb.Append('\2a') }
+            elseif ($code -eq 92) { [void]$sb.Append('\5c') }
+            else { [void]$sb.Append($ch) }
+        }
+        return $sb.ToString()
+    }
+
     $root = New-Object System.DirectoryServices.DirectoryEntry('LDAP://RootDSE')
     $base = [string]$root.Get('defaultNamingContext')
     $de = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$base")
     $ds = New-Object System.DirectoryServices.DirectorySearcher($de)
     # Aktivierte Personen-/Benutzerobjekte (deaktivierte via UAC-Bit 2 ausgeschlossen)
-    $ds.Filter = '(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))'
+    $enabledFilter = '(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))'
+    $search = [string] $env:HARDVIEW_AD_SEARCH
+    if ($null -eq $search) { $search = '' }
+    $search = $search.Trim()
+    if ([string]::IsNullOrWhiteSpace($search)) {
+        $ds.Filter = $enabledFilter
+    } else {
+        $needle = '*' + (ConvertTo-LdapFilterValue $search) + '*'
+        $matchFilter = "(|(sAMAccountName=$needle)(displayName=$needle)(department=$needle)(mail=$needle)(givenName=$needle)(sn=$needle))"
+        $ds.Filter = "(&$enabledFilter$matchFilter)"
+    }
     $ds.PageSize = 1000
     $ds.SizeLimit = 0
     'sAMAccountName','displayName','department','mail','givenName','sn' | ForEach-Object { [void]$ds.PropertiesToLoad.Add($_) }
 
-    # Obergrenze gegen sehr grosse Verzeichnisse (Speicher/Zeit); die App filtert
-    # ohnehin in Rust und schneidet auf 100 Treffer zu.
-    $max = 20000
+    # Obergrenze gegen sehr grosse Verzeichnisse (Speicher/Zeit). Bei Suchtext
+    # filtert LDAP bereits serverseitig, deshalb reicht ein kleineres Limit.
+    $max = if ([string]::IsNullOrWhiteSpace($search)) { 20000 } else { 500 }
     $list = New-Object System.Collections.Generic.List[object]
     foreach ($r in $ds.FindAll()) {
         $p = $r.Properties

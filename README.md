@@ -64,9 +64,10 @@ node app/dev-server.js
 **App mit Demo-Daten starten:**
 ```powershell
 cd app
-$env:HARDVIEW_DATA_DIR='..\shared\sample-data\Inventory'
-$env:HARDVIEW_CSV='..\shared\sample-data\Rollout_Masterliste.csv'
-$env:HARDVIEW_ASSIGN='..\shared\sample-data\control\assignments.json'
+$sample = (Resolve-Path '..\shared\sample-data').Path
+$env:HARDVIEW_DATA_DIR = Join-Path $sample 'Inventory'
+$env:HARDVIEW_CSV = Join-Path $sample 'Rollout_Masterliste.csv'
+$env:HARDVIEW_ASSIGN = Join-Path $sample 'control\assignments.json'
 npm ci
 npm run dev
 ```
