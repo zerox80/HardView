@@ -60,6 +60,30 @@
         "Gerät alt (5,5 Jahre)",
         "Kein Windows 11 (Win 10 EOL)"
       ]
+    },
+    {
+      "name": "grenzwerte-genau-am-limit-ok",
+      "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 5.0, "diskIsSsd": true, "cpuCores": 4, "cpuClockMhz": 1500, "osIsWin11": true, "lastSeenDays": 30 },
+      "status": "ok",
+      "reasons": []
+    },
+    {
+      "name": "ram-genau-am-limit-knapp",
+      "facts": { "hasInventory": true, "ramGB": 8, "ageYears": 2.0, "diskIsSsd": true, "cpuCores": 8, "cpuClockMhz": 3000, "osIsWin11": true, "lastSeenDays": 5 },
+      "status": "upgrade",
+      "reasons": ["RAM knapp (8 GB)"]
+    },
+    {
+      "name": "cpu-takt-null-ueberspringt-regel-trotz-limit",
+      "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 1.0, "diskIsSsd": true, "cpuCores": 8, "cpuClockMhz": 0, "osIsWin11": true, "lastSeenDays": 1 },
+      "status": "ok",
+      "reasons": []
+    },
+    {
+      "name": "stale-grenze-genau-30-nicht-stale",
+      "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 6.0, "diskIsSsd": true, "cpuCores": 8, "cpuClockMhz": 3000, "osIsWin11": true, "lastSeenDays": 30 },
+      "status": "upgrade",
+      "reasons": ["Gerät alt (6,0 Jahre)"]
     }
   ]
 }

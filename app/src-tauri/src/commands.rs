@@ -17,7 +17,9 @@ pub struct Inner {
 pub struct AppState {
     pub inner: Mutex<Inner>,
     /// Serialisiert AD-Abfragen, damit nebenlaeufige Aufrufe nicht mehrere
-    /// PowerShell-Prozesse starten. Wird nie gemeinsam mit `inner` gehalten.
+    /// PowerShell-Prozesse starten. Lock-Reihenfolge ist strikt `ad_fetch` vor
+    /// `inner` (nie umgekehrt) -> deadlockfrei. `inner` wird darunter nur kurz
+    /// fuer Cache-Pruefung/-Update gehalten, nie ueber den Fetch hinweg.
     pub ad_fetch: Mutex<()>,
 }
 
@@ -278,4 +280,28 @@ fn current_user_domain() -> (String, String) {
         user
     );
     (full, domain)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::synth_sam;
+
+    #[test]
+    fn synth_sam_transliterates_umlauts() {
+        // Umlaute/ß werden ASCII-transliteriert, Leerzeichen -> Punkt, alles lower-case.
+        assert_eq!(synth_sam("Jürgen Müller"), "juergen.mueller");
+        assert_eq!(synth_sam("Björn Öztürk"), "bjoern.oeztuerk");
+        assert_eq!(synth_sam("Weiß"), "weiss");
+        assert_eq!(synth_sam("Änne Ärmel"), "aenne.aermel");
+    }
+
+    #[test]
+    fn synth_sam_filters_unsupported_chars_and_is_deterministic() {
+        // Nicht erlaubte Zeichen (Apostroph, Klammern, sonstige Akzente) fallen weg;
+        // erlaubt bleiben ASCII-Alphanumerik plus '.', '-', '_'.
+        assert_eq!(synth_sam("O'Brien"), "obrien");
+        assert_eq!(synth_sam("Anna-Lena_K (Gast)"), "anna-lena_k.gast");
+        // Deterministisch: gleicher Input -> gleicher Output.
+        assert_eq!(synth_sam("Test User"), synth_sam("Test User"));
+    }
 }

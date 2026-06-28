@@ -1,6 +1,7 @@
 //! CSV-Export der Geraeteliste. RFC-4180-Quoting, Haertung gegen Formel-Injection
 //! und UTF-8 mit BOM (damit Excel Umlaute korrekt anzeigt).
 use crate::model::DeviceFull;
+use crate::upgrade::fmt_de;
 use std::path::PathBuf;
 
 /// Serialisiert die Geraete als CSV, schreibt sie in den Documents-Ordner des
@@ -39,9 +40,7 @@ fn build_csv(devs: &[DeviceFull]) -> String {
             d.ram_gb,
             esc(&d.disk_type),
             d.disk_gb,
-            d.age_years
-                .map(|a| format!("{:.1}", a).replace('.', ","))
-                .unwrap_or_default(),
+            d.age_years.map(fmt_de).unwrap_or_default(),
             esc(&d.os_caption),
             esc(&d.last_seen_text),
             esc(&d.serial_number),
@@ -62,4 +61,37 @@ fn esc(s: &str) -> String {
         cleaned
     };
     format!("\"{}\"", guarded.replace('"', "\"\""))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::esc;
+
+    #[test]
+    fn esc_quotes_and_doubles_inner_quotes() {
+        assert_eq!(esc("normal"), "\"normal\"");
+        // Innere Quotes werden RFC-4180-konform verdoppelt.
+        assert_eq!(esc("a\"b"), "\"a\"\"b\"");
+    }
+
+    #[test]
+    fn esc_neutralizes_formula_injection() {
+        // Fuehrende Formel-Trigger werden mit ' entschaerft (kein Excel/Calc-Eval).
+        assert_eq!(esc("=1+1"), "\"'=1+1\"");
+        assert_eq!(esc("+cmd"), "\"'+cmd\"");
+        assert_eq!(esc("-2"), "\"'-2\"");
+        assert_eq!(esc("@SUM(A1)"), "\"'@SUM(A1)\"");
+        assert_eq!(esc("\tTab"), "\"'\tTab\"");
+        // Klassischer DDE-Payload bleibt als Text erhalten, nicht als Formel.
+        assert_eq!(esc("=cmd|'/c calc'!A1"), "\"'=cmd|'/c calc'!A1\"");
+    }
+
+    #[test]
+    fn esc_strips_newlines_to_keep_one_row_per_device() {
+        // CR/LF wuerden sonst die Zeilenstruktur (und damit die Spalten) zerstoeren;
+        // beide werden einzeln durch ein Leerzeichen ersetzt (CRLF -> zwei Spaces).
+        assert_eq!(esc("Zeile1\r\nZeile2"), "\"Zeile1  Zeile2\"");
+        assert_eq!(esc("a\nb"), "\"a b\"");
+        assert!(!esc("a\r\nb").contains('\n') && !esc("a\r\nb").contains('\r'));
+    }
 }
