@@ -2,6 +2,7 @@
 use crate::ad;
 use crate::model::*;
 use crate::store;
+use std::collections::BTreeSet;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::State;
@@ -177,23 +178,46 @@ pub fn set_assignment(
     user_dept: Option<String>,
     note: String,
 ) -> Result<serde_json::Value, String> {
-    let config = {
-        let inner = state.inner.lock().map_err(|e| e.to_string())?;
-        inner.config.clone()
+    let host_key = host.trim().to_uppercase();
+    let (config, known_hosts) = {
+        let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
+        let config = inner.config.clone();
+        let known_hosts: BTreeSet<String> = ensure_devices(&mut inner)
+            .iter()
+            .map(|d| d.host.clone())
+            .collect();
+        (config, known_hosts)
     };
     let by = current_user_domain().0;
-    store::write_assignment(
+    store::write_assignment_for_known_hosts(
         &config,
-        &host,
-        &user,
-        &user_display,
-        user_dept.as_deref().unwrap_or(""),
-        &note,
-        &by,
+        &known_hosts,
+        store::AssignmentWrite {
+            host: &host,
+            user: &user,
+            user_display: &user_display,
+            user_dept: user_dept.as_deref().unwrap_or(""),
+            note: &note,
+            by: &by,
+        },
     )?;
     let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
-    inner.devices = None; // Cache invalidieren -> beim naechsten Lesen neu mergen
-    Ok(serde_json::json!({ "ok": true }))
+    let updated = inner.devices.as_mut().and_then(|devs| {
+        devs.iter_mut()
+            .find(|d| d.host.eq_ignore_ascii_case(&host_key))
+            .map(|d| {
+                store::apply_manual_assignment(
+                    d,
+                    &user,
+                    &user_display,
+                    user_dept.as_deref().unwrap_or(""),
+                    &note,
+                    &by,
+                );
+                d.clone()
+            })
+    });
+    Ok(serde_json::json!({ "ok": true, "device": updated }))
 }
 
 #[tauri::command]

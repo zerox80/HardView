@@ -56,10 +56,17 @@
           el('div', { class: 'btn btn-primary', onclick: async () => {
             if (!selected) { toast('Bitte einen Benutzer auswählen.'); return; }
             try {
-              await invoke('set_assignment', { host, user: selected.sam, userDisplay: selected.display, userDept: selected.dept || '', note });
+              const result = await invoke('set_assignment', { host, user: selected.sam, userDisplay: selected.display, userDept: selected.dept || '', note });
               toast('Zugeordnet: ' + selected.display + ' → ' + host);
               close();
-              await loadData();
+              if (result && result.device) {
+                const i = state.devices.findIndex((d) => d.host === result.device.host);
+                if (i >= 0) state.devices[i] = result.device; else state.devices.push(result.device);
+                state.overview = await invoke('get_overview');
+                renderKpis(); applyView();
+              } else {
+                await loadData();
+              }
               state.selected = host; renderDrawer();
             } catch (e) { toast('Speichern fehlgeschlagen: ' + e); }
           } }, 'Speichern'))));

@@ -70,15 +70,12 @@ fn build_one(
         .collect();
 
     let disks = iv.disks.clone().unwrap_or_default();
-    let has_ssd = disks.iter().any(|d| eq_ci(&d.media_type, "SSD"));
+    let has_ssd = disks.iter().any(|d| is_solid_state_media(&d.media_type));
     let has_hdd = disks.iter().any(|d| eq_ci(&d.media_type, "HDD"));
     let primary = disks
         .iter()
         .max_by_key(|d| d.size_gb.unwrap_or(0.0).round() as i64);
-    let primary_is_ssd = primary
-        .map(|d| eq_ci(&d.media_type, "SSD"))
-        .unwrap_or(false);
-    let disk_is_ssd = has_ssd && !has_hdd && primary_is_ssd;
+    let disk_is_ssd = classify_ssd_state(primary, has_hdd);
     let disk_type = if has_ssd && has_hdd {
         "Mixed SSD/HDD".to_string()
     } else {
@@ -93,7 +90,7 @@ fn build_one(
     let os = iv.os.clone().unwrap_or_default();
     let os_caption = opt_str(&os.caption, "—");
     let os_build = os.version.clone().or(os.build.clone()).unwrap_or_default();
-    let os_is_win11 = os_caption.contains("11");
+    let os_is_win11 = classify_windows_11(&os_caption, &os_build);
     let age_years = iv.age_years;
     let last_seen_days = iv.collected_at_utc.as_deref().and_then(days_since);
 
@@ -244,4 +241,68 @@ fn build_one(
         confirmed_by,
         collected_at_utc: iv.collected_at_utc.clone(),
     }
+}
+
+pub fn apply_manual_assignment(
+    d: &mut DeviceFull,
+    user: &str,
+    user_display: &str,
+    user_dept: &str,
+    note: &str,
+    confirmed_by: &str,
+) {
+    let display = if user_display.trim().is_empty() {
+        user.to_string()
+    } else {
+        user_display.to_string()
+    };
+    d.user = display.clone();
+    d.user_display = display.clone();
+    d.user_sam = user.to_string();
+    d.user_source = "manuell bestätigt".to_string();
+    d.dept = if user_dept.trim().is_empty() {
+        dept_from_host(&d.host)
+    } else {
+        user_dept.to_string()
+    };
+    d.initials = initials(&display);
+    d.note = note.to_string();
+    d.confirmed_by = Some(confirmed_by.to_string());
+}
+
+fn is_solid_state_media(media_type: &Option<String>) -> bool {
+    eq_ci(media_type, "SSD") || eq_ci(media_type, "SCM")
+}
+
+fn classify_ssd_state(primary: Option<&DiskInv>, has_hdd: bool) -> Option<bool> {
+    if has_hdd {
+        return Some(false);
+    }
+    let media = primary.and_then(|d| d.media_type.as_ref())?;
+    if media.eq_ignore_ascii_case("HDD") {
+        Some(false)
+    } else if media.eq_ignore_ascii_case("SSD") || media.eq_ignore_ascii_case("SCM") {
+        Some(true)
+    } else {
+        None
+    }
+}
+
+fn classify_windows_11(caption: &str, build: &str) -> Option<bool> {
+    let lower = caption.to_lowercase();
+    if lower.contains("windows 11") {
+        return Some(true);
+    }
+    if lower.contains("windows 10") {
+        return Some(false);
+    }
+    if let Some(build_no) = build.rsplit('.').next().and_then(|b| b.parse::<i64>().ok()) {
+        if build_no >= 22_000 {
+            return Some(true);
+        }
+        if build_no >= 10_000 {
+            return Some(false);
+        }
+    }
+    None
 }

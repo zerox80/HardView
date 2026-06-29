@@ -271,6 +271,7 @@ pub struct Overview {
     pub current: i64,
     pub avg_age_years: f64,
     pub old5: i64,
+    pub old_age_label: String,
     pub dept_count: i64,
     pub by_dept: Vec<DeptStat>,
     pub age_buckets: Vec<Bucket>,

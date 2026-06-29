@@ -1,4 +1,5 @@
 use crate::model::{Bucket, DeptStat, DeviceFull, Overview, StatusCounts, Thresholds};
+use crate::upgrade::fmt_de;
 use std::collections::HashMap;
 
 // ------------------------------------------------------------------ Overview
@@ -100,6 +101,7 @@ pub fn build_overview(devs: &[DeviceFull], th: &Thresholds) -> Overview {
         current: with_inv - stale,
         avg_age_years: (avg * 10.0).round() / 10.0,
         old5,
+        old_age_label: format!("> {} Jahre", fmt_de(th.max_age_years)),
         dept_count: by_dept.len() as i64,
         by_dept,
         age_buckets,

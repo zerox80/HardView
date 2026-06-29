@@ -14,10 +14,10 @@ pub struct DeviceFacts {
     pub has_inventory: bool,
     pub ram_gb: i64,
     pub age_years: Option<f64>,
-    pub disk_is_ssd: bool,
+    pub disk_is_ssd: Option<bool>,
     pub cpu_cores: i64,
     pub cpu_clock_mhz: i64,
-    pub os_is_win11: bool,
+    pub os_is_win11: Option<bool>,
     pub last_seen_days: Option<i64>,
 }
 
@@ -40,7 +40,7 @@ pub fn evaluate(th: &Thresholds, f: &DeviceFacts) -> Eval {
     if f.ram_gb > 0 && f.ram_gb <= th.min_ram_gb {
         reasons.push(format!("RAM knapp ({} GB)", f.ram_gb));
     }
-    if th.require_ssd && !f.disk_is_ssd {
+    if th.require_ssd && matches!(f.disk_is_ssd, Some(false)) {
         reasons.push("HDD statt SSD".into());
     }
     if f.cpu_cores > 0 && f.cpu_cores < th.min_cpu_cores {
@@ -49,7 +49,7 @@ pub fn evaluate(th: &Thresholds, f: &DeviceFacts) -> Eval {
     if th.min_cpu_clock_mhz > 0 && f.cpu_clock_mhz > 0 && f.cpu_clock_mhz < th.min_cpu_clock_mhz {
         reasons.push(format!("CPU-Takt niedrig ({} MHz)", f.cpu_clock_mhz));
     }
-    if !f.os_is_win11 {
+    if matches!(f.os_is_win11, Some(false)) {
         reasons.push("Kein Windows 11 (Win 10 EOL)".into());
     }
 

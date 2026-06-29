@@ -67,10 +67,10 @@
     const reasons = [];
     if (f.ageYears != null && f.ageYears > th.maxAgeYears) reasons.push('Gerät alt (' + fmtDe(f.ageYears) + ' Jahre)');
     if (f.ramGB > 0 && f.ramGB <= th.minRamGB) reasons.push('RAM knapp (' + f.ramGB + ' GB)');
-    if (th.requireSsd && !f.diskIsSsd) reasons.push('HDD statt SSD');
+    if (th.requireSsd && f.diskIsSsd === false) reasons.push('HDD statt SSD');
     if (f.cpuCores > 0 && f.cpuCores < th.minCpuCores) reasons.push('CPU schwach (' + f.cpuCores + ' Kerne)');
     if (th.minCpuClockMhz > 0 && f.cpuClockMhz > 0 && f.cpuClockMhz < th.minCpuClockMhz) reasons.push('CPU-Takt niedrig (' + f.cpuClockMhz + ' MHz)');
-    if (!f.osIsWin11) reasons.push('Kein Windows 11 (Win 10 EOL)');
+    if (f.osIsWin11 === false) reasons.push('Kein Windows 11 (Win 10 EOL)');
     const futureTimestamp = f.lastSeenDays != null && f.lastSeenDays < -1;
     if (futureTimestamp || (f.lastSeenDays != null && f.lastSeenDays > th.staleDays)) {
       return { status: 'stale', statusLabel: futureTimestamp ? 'Unplausibel · Zeitstempel in Zukunft' : 'Veraltet · Agent meldet nicht', reasons };
@@ -85,10 +85,10 @@
       hasInventory: hasInv,
       ramGB: pc.ram,
       ageYears: hasInv ? pc.age : null,
-      diskIsSsd: pc.disk === 'SSD',
+      diskIsSsd: pc.disk == null ? null : (pc.disk === 'SSD' || pc.disk === 'SCM'),
       cpuCores: pc.c,
       cpuClockMhz: pc.clock || 0,
-      osIsWin11: pc.os.includes('11'),
+      osIsWin11: pc.os ? pc.os.includes('11') : null,
       lastSeenDays: hasInv ? pc.stale : null
     });
     const status = ev.status, statusLabel = ev.statusLabel, reasons = ev.reasons;
@@ -146,6 +146,7 @@
     return {
       total, withInventory: withInv, stale, missing, upgradeNeeded: upgrade, ok,
       current: withInv - stale, avgAgeYears: Math.round(avgAge * 10) / 10, old5,
+      oldAgeLabel: '> ' + fmtDe(THRESH.maxAgeYears) + ' Jahre',
       deptCount: Object.keys(depts).length,
       byDept: Object.values(depts).sort((a, b) => b.count - a.count),
       ageBuckets, ramBuckets,

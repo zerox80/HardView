@@ -1,10 +1,10 @@
 use super::atomic::{acquire_assignment_lock, atomic_write};
 use super::common::now_iso;
 use super::config::{default_assignments_path, validate_config};
-use super::inventory::{is_valid_host_id, read_known_hosts};
+use super::inventory::is_valid_host_id;
 use super::text::read_text;
 use crate::model::{AssignmentEntry, AssignmentStore, Config};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::Path;
 
@@ -30,26 +30,42 @@ pub fn read_assignments(path: &str) -> AssignmentStore {
     store
 }
 
-pub fn write_assignment(
+pub struct AssignmentWrite<'a> {
+    pub host: &'a str,
+    pub user: &'a str,
+    pub user_display: &'a str,
+    pub user_dept: &'a str,
+    pub note: &'a str,
+    pub by: &'a str,
+}
+
+pub fn write_assignment_for_known_hosts(
     cfg: &Config,
-    host: &str,
-    user: &str,
-    user_display: &str,
-    user_dept: &str,
-    note: &str,
-    by: &str,
+    known_hosts: &BTreeSet<String>,
+    write: AssignmentWrite<'_>,
 ) -> Result<(), String> {
+    let checked_cfg = checked_assignment_config(cfg)?;
+    persist_assignment(&checked_cfg, known_hosts, write)
+}
+
+fn checked_assignment_config(cfg: &Config) -> Result<Config, String> {
     let mut checked_cfg = cfg.clone();
     if checked_cfg.assignments_path.is_none() {
         checked_cfg.assignments_path = Some(default_assignments_path(&checked_cfg.data_dir));
     }
     validate_config(&checked_cfg)?;
+    Ok(checked_cfg)
+}
 
-    let host_key = host.trim().to_uppercase();
+fn persist_assignment(
+    checked_cfg: &Config,
+    known_hosts: &BTreeSet<String>,
+    write: AssignmentWrite<'_>,
+) -> Result<(), String> {
+    let host_key = write.host.trim().to_uppercase();
     if !is_valid_host_id(&host_key) {
         return Err("Ungueltiger Hostname".into());
     }
-    let known_hosts = read_known_hosts(&checked_cfg);
     if !known_hosts.contains(&host_key) {
         return Err(format!(
             "Geraet '{}' ist nicht in Inventar oder Masterliste vorhanden",
@@ -71,16 +87,16 @@ pub fn write_assignment(
     let now = now_iso();
     store.version += 1;
     store.updated_at_utc = Some(now.clone());
-    store.updated_by = Some(by.to_string());
+    store.updated_by = Some(write.by.to_string());
     store.assignments.insert(
         host_key,
         AssignmentEntry {
-            user: user.to_string(),
-            user_display: user_display.to_string(),
-            dept: user_dept.to_string(),
-            confirmed_by: Some(by.to_string()),
+            user: write.user.to_string(),
+            user_display: write.user_display.to_string(),
+            dept: write.user_dept.to_string(),
+            confirmed_by: Some(write.by.to_string()),
             confirmed_at_utc: Some(now),
-            note: note.to_string(),
+            note: write.note.to_string(),
         },
     );
     let txt = serde_json::to_string_pretty(&store).map_err(|e| e.to_string())?;

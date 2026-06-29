@@ -1,6 +1,6 @@
-use super::master_csv::{read_master_csv, CsvRow};
+use super::master_csv::CsvRow;
 use super::text::read_text;
-use crate::model::{Config, Inventory};
+use crate::model::Inventory;
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
 
@@ -84,12 +84,6 @@ pub(super) fn is_valid_host_id(host: &str) -> bool {
         && !host.starts_with('-')
         && !host.ends_with('-')
         && host.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-}
-
-pub(super) fn read_known_hosts(cfg: &Config) -> BTreeSet<String> {
-    let csv = read_master_csv(&cfg.master_csv_path);
-    let inv = read_inventory_dir(&cfg.data_dir);
-    known_hosts_from(&csv, &inv)
 }
 
 pub(super) fn known_hosts_from(

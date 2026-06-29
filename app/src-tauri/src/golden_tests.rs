@@ -25,10 +25,10 @@ struct Facts {
     #[serde(rename = "ramGB")]
     ram_gb: i64,
     age_years: Option<f64>,
-    disk_is_ssd: bool,
+    disk_is_ssd: Option<bool>,
     cpu_cores: i64,
     cpu_clock_mhz: i64,
-    os_is_win11: bool,
+    os_is_win11: Option<bool>,
     last_seen_days: Option<i64>,
 }
 

@@ -2,24 +2,60 @@
 //! und UTF-8 mit BOM (damit Excel Umlaute korrekt anzeigt).
 use crate::model::DeviceFull;
 use crate::upgrade::fmt_de;
+use std::io::{ErrorKind, Write};
+use std::path::Path;
 use std::path::PathBuf;
 
 /// Serialisiert die Geraete als CSV, schreibt sie in den Documents-Ordner des
 /// Benutzers und liefert (Pfad, Zeilenzahl) zurueck.
 pub fn write_devices_csv(devs: &[DeviceFull]) -> Result<(PathBuf, usize), String> {
-    let csv = build_csv(devs);
-
     let docs = std::env::var("USERPROFILE")
         .map(|p| std::path::Path::new(&p).join("Documents"))
         .unwrap_or_else(|_| std::env::temp_dir());
-    let _ = std::fs::create_dir_all(&docs);
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let file = docs.join(format!("HardView-Export-{}.csv", stamp));
+    write_devices_csv_to_dir(devs, &docs)
+}
+
+fn write_devices_csv_to_dir(devs: &[DeviceFull], docs: &Path) -> Result<(PathBuf, usize), String> {
+    let csv = build_csv(devs);
+
+    std::fs::create_dir_all(docs)
+        .map_err(|e| format!("Export-Ordner konnte nicht erstellt werden: {}", e))?;
+    let now = chrono::Local::now();
+    let stamp = format!(
+        "{}-{:03}",
+        now.format("%Y%m%d-%H%M%S"),
+        now.timestamp_subsec_millis()
+    );
 
     let mut bytes = vec![0xEF, 0xBB, 0xBF];
     bytes.extend_from_slice(csv.as_bytes());
-    std::fs::write(&file, bytes).map_err(|e| format!("Export fehlgeschlagen: {}", e))?;
+    let file = write_unique_export(docs, &stamp, &bytes)?;
     Ok((file, devs.len()))
+}
+
+fn write_unique_export(docs: &Path, stamp: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+    for suffix in 0..1000 {
+        let name = if suffix == 0 {
+            format!("HardView-Export-{}.csv", stamp)
+        } else {
+            format!("HardView-Export-{}-{}.csv", stamp, suffix)
+        };
+        let file = docs.join(name);
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file)
+        {
+            Ok(mut out) => {
+                out.write_all(bytes)
+                    .map_err(|e| format!("Export fehlgeschlagen: {}", e))?;
+                return Ok(file);
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("Export fehlgeschlagen: {}", e)),
+        }
+    }
+    Err("Export fehlgeschlagen: kein freier Dateiname gefunden".into())
 }
 
 fn build_csv(devs: &[DeviceFull]) -> String {
@@ -93,5 +129,24 @@ mod tests {
         assert_eq!(esc("Zeile1\r\nZeile2"), "\"Zeile1  Zeile2\"");
         assert_eq!(esc("a\nb"), "\"a b\"");
         assert!(!esc("a\r\nb").contains('\n') && !esc("a\r\nb").contains('\r'));
+    }
+
+    #[test]
+    fn export_creates_unique_files_without_overwrite() {
+        let dir = std::env::temp_dir().join(format!(
+            "hardview-export-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let (first, rows1) = super::write_devices_csv_to_dir(&[], &dir).unwrap();
+        let (second, rows2) = super::write_devices_csv_to_dir(&[], &dir).unwrap();
+        assert_eq!(rows1, 0);
+        assert_eq!(rows2, 0);
+        assert_ne!(first, second);
+        assert!(first.exists());
+        assert!(second.exists());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

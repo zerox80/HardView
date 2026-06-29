@@ -53,6 +53,12 @@
       "reasons": []
     },
     {
+      "name": "unbekannte-disk-und-os-ueberspringen-regeln",
+      "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 1.0, "diskIsSsd": null, "cpuCores": 4, "cpuClockMhz": 2200, "osIsWin11": null, "lastSeenDays": 0 },
+      "status": "ok",
+      "reasons": []
+    },
+    {
       "name": "ssd-aber-altes-win10",
       "facts": { "hasInventory": true, "ramGB": 16, "ageYears": 5.5, "diskIsSsd": true, "cpuCores": 6, "cpuClockMhz": 2600, "osIsWin11": false, "lastSeenDays": 10 },
       "status": "upgrade",

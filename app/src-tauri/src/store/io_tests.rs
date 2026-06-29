@@ -1,4 +1,4 @@
-use super::assignments::{read_assignments, write_assignment};
+use super::assignments::{read_assignments, write_assignment_for_known_hosts, AssignmentWrite};
 use super::atomic::atomic_write;
 use super::build_devices;
 use super::common::now_iso;
@@ -127,26 +127,33 @@ fn write_assignment_validates_known_host_and_persists_dept() {
     let cfg = temp_config(&root);
     fs::write(&cfg.master_csv_path, "Computer;Benutzer\nWS-KNOWN-01;\n").unwrap();
 
-    let err = write_assignment(
+    let known_hosts = ["WS-KNOWN-01".to_string()].into_iter().collect();
+    let err = write_assignment_for_known_hosts(
         &cfg,
-        "WS-UNKNOWN-01",
-        "CORP\\ghost",
-        "Ghost User",
-        "IT",
-        "",
-        "tester",
+        &known_hosts,
+        AssignmentWrite {
+            host: "WS-UNKNOWN-01",
+            user: "CORP\\ghost",
+            user_display: "Ghost User",
+            user_dept: "IT",
+            note: "",
+            by: "tester",
+        },
     )
     .unwrap_err();
     assert!(err.contains("nicht in Inventar"));
 
-    write_assignment(
+    write_assignment_for_known_hosts(
         &cfg,
-        "ws-known-01",
-        "CORP\\jsmith",
-        "Jane Smith",
-        "IT",
-        "confirmed",
-        "tester",
+        &known_hosts,
+        AssignmentWrite {
+            host: "ws-known-01",
+            user: "CORP\\jsmith",
+            user_display: "Jane Smith",
+            user_dept: "IT",
+            note: "confirmed",
+            by: "tester",
+        },
     )
     .unwrap();
 
@@ -157,6 +164,65 @@ fn write_assignment_validates_known_host_and_persists_dept() {
     assert_eq!(entry.dept, "IT");
     assert_eq!(entry.note, "confirmed");
     assert_eq!(store.version, 1);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn write_assignment_can_reuse_cached_known_hosts() {
+    let root = unique_temp_dir("write-assignment-cached");
+    let cfg = temp_config(&root);
+    fs::write(&cfg.master_csv_path, "Computer;Benutzer\n").unwrap();
+    let known_hosts = ["WS-CACHED-01".to_string()].into_iter().collect();
+
+    write_assignment_for_known_hosts(
+        &cfg,
+        &known_hosts,
+        AssignmentWrite {
+            host: "ws-cached-01",
+            user: "CORP\\jdoe",
+            user_display: "Jane Doe",
+            user_dept: "IT",
+            note: "cached",
+            by: "tester",
+        },
+    )
+    .unwrap();
+
+    let store = read_assignments(cfg.assignments_path.as_deref().unwrap());
+    assert!(store.assignments.contains_key("WS-CACHED-01"));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn unknown_disk_and_os_do_not_create_upgrade_reasons() {
+    let root = unique_temp_dir("unknown-disk-os");
+    let cfg = temp_config(&root);
+    fs::write(&cfg.master_csv_path, "Computer;Benutzer\nWS-UNKNOWN-01;\n").unwrap();
+    fs::write(
+        Path::new(&cfg.data_dir).join("WS-UNKNOWN-01.json"),
+        format!(
+            r#"{{
+  "schemaVersion": 1,
+  "hostname": "WS-UNKNOWN-01",
+  "collectedAtUtc": "{}",
+  "ageYears": 1.0,
+  "cpu": {{"cores": 4, "logicalProcessors": 8, "maxClockMhz": 3000}},
+  "ram": {{"totalGB": 16, "slotsUsed": 1, "slotsTotal": 2}},
+  "disks": [{{"mediaType": "Unbekannt", "sizeGB": 512}}],
+  "os": {{"caption": "", "version": ""}}
+}}"#,
+            now_iso()
+        ),
+    )
+    .unwrap();
+
+    let devs = build_devices(&cfg);
+    let dev = devs.iter().find(|d| d.host == "WS-UNKNOWN-01").unwrap();
+    assert_eq!(dev.status, "ok");
+    assert!(!dev.upgrade_reasons.iter().any(|r| r.contains("HDD")));
+    assert!(!dev.upgrade_reasons.iter().any(|r| r.contains("Win 10")));
 
     let _ = fs::remove_dir_all(root);
 }
