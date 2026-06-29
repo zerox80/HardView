@@ -4,6 +4,7 @@ use super::common::{
     os_short, strip_domain,
 };
 use super::config::default_assignments_path;
+use super::facts::{classify_ssd_state, classify_windows_11, is_solid_state_media};
 use super::inventory::{known_hosts_from, read_inventory_dir};
 use super::master_csv::{read_master_csv, CsvRow};
 use crate::model::*;
@@ -268,41 +269,4 @@ pub fn apply_manual_assignment(
     d.initials = initials(&display);
     d.note = note.to_string();
     d.confirmed_by = Some(confirmed_by.to_string());
-}
-
-fn is_solid_state_media(media_type: &Option<String>) -> bool {
-    eq_ci(media_type, "SSD") || eq_ci(media_type, "SCM")
-}
-
-fn classify_ssd_state(primary: Option<&DiskInv>, has_hdd: bool) -> Option<bool> {
-    if has_hdd {
-        return Some(false);
-    }
-    let media = primary.and_then(|d| d.media_type.as_ref())?;
-    if media.eq_ignore_ascii_case("HDD") {
-        Some(false)
-    } else if media.eq_ignore_ascii_case("SSD") || media.eq_ignore_ascii_case("SCM") {
-        Some(true)
-    } else {
-        None
-    }
-}
-
-fn classify_windows_11(caption: &str, build: &str) -> Option<bool> {
-    let lower = caption.to_lowercase();
-    if lower.contains("windows 11") {
-        return Some(true);
-    }
-    if lower.contains("windows 10") {
-        return Some(false);
-    }
-    if let Some(build_no) = build.rsplit('.').next().and_then(|b| b.parse::<i64>().ok()) {
-        if build_no >= 22_000 {
-            return Some(true);
-        }
-        if build_no >= 10_000 {
-            return Some(false);
-        }
-    }
-    None
 }

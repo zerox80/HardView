@@ -1,6 +1,7 @@
 mod ad;
 mod commands;
 mod export;
+mod identity;
 mod model;
 mod store;
 mod upgrade;

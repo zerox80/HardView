@@ -1,5 +1,6 @@
 //! Tauri-Befehle (Bruecke Frontend <-> Backend). Halten Geraeteliste & AD-Cache im State.
 use crate::ad;
+use crate::identity::synth_sam;
 use crate::model::*;
 use crate::store;
 use std::collections::BTreeSet;
@@ -275,25 +276,6 @@ pub fn export_devices(state: State<AppState>, format: String) -> Result<serde_js
 
     let (file, rows) = crate::export::write_devices_csv(&devs)?;
     Ok(serde_json::json!({ "ok": true, "path": file.to_string_lossy(), "rows": rows }))
-}
-
-/// Leitet aus einem Anzeigenamen einen plausiblen SAM-Account ab — nur als
-/// CSV-Fallback, wenn kein AD verfuegbar ist. Deutsche Umlaute werden
-/// transliteriert, damit der Wert ASCII-stabil und deterministisch bleibt.
-pub(crate) fn synth_sam(display: &str) -> String {
-    let mut sam = String::new();
-    for ch in display.chars() {
-        match ch {
-            'ä' | 'Ä' => sam.push_str("ae"),
-            'ö' | 'Ö' => sam.push_str("oe"),
-            'ü' | 'Ü' => sam.push_str("ue"),
-            'ß' => sam.push_str("ss"),
-            ' ' => sam.push('.'),
-            c if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') => sam.push(c),
-            _ => {}
-        }
-    }
-    sam.to_lowercase()
 }
 
 fn current_user_domain() -> (String, String) {

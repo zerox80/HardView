@@ -4,6 +4,7 @@ mod assignments;
 mod atomic;
 mod common;
 mod config;
+mod facts;
 mod inventory;
 mod master_csv;
 mod merge;

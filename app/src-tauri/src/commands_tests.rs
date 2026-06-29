@@ -1,4 +1,4 @@
-use crate::commands::synth_sam;
+use crate::identity::synth_sam;
 
 #[test]
 fn synth_sam_transliterates_umlauts() {
