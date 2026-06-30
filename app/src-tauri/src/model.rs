@@ -247,7 +247,9 @@ pub struct Bucket {
 pub struct DeptStat {
     pub dept: String,
     pub count: i64,
-    pub upgrade: i64,
+    /// Geraete, die Aufmerksamkeit brauchen: Upgrade-Kandidaten + Geraete ohne
+    /// Inventarmeldung ("missing") — bewusst weiter gefasst als nur "Upgrade noetig".
+    pub needs_action: i64,
 }
 
 #[derive(Serialize, Clone)]

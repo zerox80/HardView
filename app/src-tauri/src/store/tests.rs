@@ -139,7 +139,7 @@ fn overview_aggregates() {
             .iter()
             .find(|d| d.dept == "Lager")
             .unwrap()
-            .upgrade,
+            .needs_action,
         2
     );
     assert_eq!(ov.current, ov.with_inventory - ov.stale);
@@ -152,6 +152,11 @@ fn overview_aggregates() {
         ram_sum, ov.with_inventory,
         "RAM-Buckets decken alle Geräte ab"
     );
+
+    // Invariante: der letzte Age-Bucket ("> max_age_years") muss immer alters-konsistent
+    // mit old5 sein, da beide aus derselben age_years > th.max_age_years-Bedingung
+    // stammen.
+    assert_eq!(ov.age_buckets.last().unwrap().count, ov.old5);
 }
 
 #[test]

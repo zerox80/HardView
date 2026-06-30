@@ -19,6 +19,8 @@ pub use overview::build_overview;
 #[cfg(test)]
 mod io_tests;
 #[cfg(test)]
+mod overview_tests;
+#[cfg(test)]
 mod test_support;
 #[cfg(test)]
 mod tests;

@@ -13,6 +13,11 @@
     return value == null ? '' : String(value).toLowerCase();
   }
 
+  // Deutsche Dezimaldarstellung, 1 Nachkommastelle - spiegelt fmt_de() aus upgrade.rs.
+  function fmtDe(value) {
+    return Number(value).toFixed(1).replace('.', ',');
+  }
+
   function isUpgradeCandidate(device) {
     const reasons = device.upgradeReasons || device.upgrade_reasons || [];
     return device.status === 'upgrade' || (device.status === 'stale' && reasons.length > 0);
@@ -82,6 +87,7 @@
 
   return {
     applyViewChange,
+    fmtDe,
     isUpgradeCandidate,
     visibleDevices
   };

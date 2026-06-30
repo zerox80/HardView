@@ -72,8 +72,12 @@
     if (th.minCpuClockMhz > 0 && f.cpuClockMhz > 0 && f.cpuClockMhz < th.minCpuClockMhz) reasons.push('CPU-Takt niedrig (' + f.cpuClockMhz + ' MHz)');
     if (f.osIsWin11 === false) reasons.push('Kein Windows 11 (Win 10 EOL)');
     const futureTimestamp = f.lastSeenDays != null && f.lastSeenDays < -1;
-    if (futureTimestamp || (f.lastSeenDays != null && f.lastSeenDays > th.staleDays)) {
-      return { status: 'stale', statusLabel: futureTimestamp ? 'Unplausibel · Zeitstempel in Zukunft' : 'Veraltet · Agent meldet nicht', reasons };
+    const timestampMissing = f.lastSeenDays == null;
+    if (futureTimestamp || timestampMissing || (f.lastSeenDays != null && f.lastSeenDays > th.staleDays)) {
+      const statusLabel = futureTimestamp ? 'Unplausibel · Zeitstempel in Zukunft'
+        : timestampMissing ? 'Unplausibel · Zeitstempel fehlt'
+        : 'Veraltet · Agent meldet nicht';
+      return { status: 'stale', statusLabel, reasons };
     }
     if (reasons.length) return { status: 'upgrade', statusLabel: 'Upgrade empfohlen', reasons };
     return { status: 'ok', statusLabel: 'Aktuell · OK', reasons };
@@ -129,12 +133,17 @@
     const avgAge = aged.length ? (aged.reduce((a, d) => a + d.ageYears, 0) / aged.length) : 0;
     const old5 = devs.filter(d => d.ageYears != null && d.ageYears > THRESH.maxAgeYears).length;
     const depts = {};
-    devs.forEach(d => { (depts[d.dept] = depts[d.dept] || { dept: d.dept, count: 0, upgrade: 0 }); depts[d.dept].count++; if (needsAction(d)) depts[d.dept].upgrade++; });
+    devs.forEach(d => { (depts[d.dept] = depts[d.dept] || { dept: d.dept, count: 0, needsAction: 0 }); depts[d.dept].count++; if (needsAction(d)) depts[d.dept].needsAction++; });
+    // Bucket-Grenzen proportional zu maxAgeYears ableiten (spiegelt overview.rs) -
+    // beim Default (5 Jahre) identisch zur frueheren fixen Aufteilung 2/4/5.
+    const b1 = THRESH.maxAgeYears * (2 / 5);
+    const b2 = THRESH.maxAgeYears * (4 / 5);
+    const b3 = THRESH.maxAgeYears;
     const ageBuckets = [
-      { label: '< 2 Jahre', count: aged.filter(d => d.ageYears < 2).length },
-      { label: '2–4 Jahre', count: aged.filter(d => d.ageYears >= 2 && d.ageYears < 4).length },
-      { label: '4–5 Jahre', count: aged.filter(d => d.ageYears >= 4 && d.ageYears <= 5).length },
-      { label: '> 5 Jahre', count: aged.filter(d => d.ageYears > 5).length }
+      { label: '< ' + fmtDe(b1) + ' Jahre', count: aged.filter(d => d.ageYears < b1).length },
+      { label: fmtDe(b1) + '–' + fmtDe(b2) + ' Jahre', count: aged.filter(d => d.ageYears >= b1 && d.ageYears < b2).length },
+      { label: fmtDe(b2) + '–' + fmtDe(b3) + ' Jahre', count: aged.filter(d => d.ageYears >= b2 && d.ageYears <= b3).length },
+      { label: '> ' + fmtDe(b3) + ' Jahre', count: aged.filter(d => d.ageYears > b3).length }
     ];
     const withInvDevs = devs.filter(d => d.hasInventory);
     const ramBuckets = [
@@ -198,7 +207,7 @@
         case 'get_overview': return overview(DEVICES);
         case 'get_ad_users': {
           const q = (args.search || '').toLowerCase();
-          return AD_USERS.filter(u => !q || (u.display + ' ' + u.sam + ' ' + u.dept).toLowerCase().includes(q)).slice(0, 50);
+          return AD_USERS.filter(u => !q || (u.display + ' ' + u.sam + ' ' + u.dept + ' ' + u.mail).toLowerCase().includes(q)).slice(0, 50);
         }
         case 'set_assignment': {
           const d = DEVICES.find(x => x.host === args.host);

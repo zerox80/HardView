@@ -107,18 +107,21 @@
     if (state.view === 'gruppen') {
       host.appendChild(el('div', { class: 'panel' },
         el('h3', {}, 'Geräte je Abteilung'),
-        distBars(o.byDept, (i) => i.upgrade > 0 ? 'var(--amber)' : 'var(--blue)')));
+        distBars(o.byDept, (i) => i.needsAction > 0 ? 'var(--amber)' : 'var(--blue)')));
       host.appendChild(el('div', { style: { height: '14px' } }));
       host.appendChild(el('div', { class: 'panel' },
         el('h3', {}, 'Upgrade-Bedarf je Abteilung'),
-        distBars(o.byDept.map((d) => ({ label: d.dept, count: d.upgrade })), () => 'var(--amber)')));
+        distBars(o.byDept.map((d) => ({ label: d.dept, count: d.needsAction })), () => 'var(--amber)')));
       return;
     }
 
     // dashboard
+    // Farbe positional statt per Label-Regex bestimmen: der letzte Age-Bucket ist per
+    // Konstruktion (overview.rs/mock.js) immer der "ueber Schwellwert"-Bucket, der
+    // erste RAM-Bucket immer der "wenig RAM"-Bucket.
     const grid = el('div', { class: 'dash-grid' },
-      el('div', { class: 'panel' }, el('h3', {}, 'Altersverteilung'), distBars(o.ageBuckets, (i) => /5/.test(i.label) && />/.test(i.label) ? 'var(--red)' : 'var(--blue)')),
-      el('div', { class: 'panel' }, el('h3', {}, 'Arbeitsspeicher'), distBars(o.ramBuckets, (i) => /≤/.test(i.label) ? 'var(--amber)' : 'var(--green)')));
+      el('div', { class: 'panel' }, el('h3', {}, 'Altersverteilung'), distBars(o.ageBuckets, (i) => i === o.ageBuckets[o.ageBuckets.length - 1] ? 'var(--red)' : 'var(--blue)')),
+      el('div', { class: 'panel' }, el('h3', {}, 'Arbeitsspeicher'), distBars(o.ramBuckets, (i) => i === o.ramBuckets[0] ? 'var(--amber)' : 'var(--green)')));
     host.appendChild(grid);
     host.appendChild(el('div', { style: { height: '14px' } }));
     host.appendChild(el('div', { class: 'panel' },
@@ -128,7 +131,7 @@
         el('span', { class: 'tag upgrade' }, 'Upgrade ' + o.status.upgrade),
         el('span', { class: 'tag stale' }, 'Veraltet ' + o.status.stale),
         el('span', { class: 'tag missing' }, 'Kein Agent ' + o.status.missing)),
-      distBars(o.byDept, (i) => i.upgrade > 0 ? 'var(--amber)' : 'var(--blue)')));
+      distBars(o.byDept, (i) => i.needsAction > 0 ? 'var(--amber)' : 'var(--blue)')));
   }
 
   // ---------------- Einstellungen ----------------

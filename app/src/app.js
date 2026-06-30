@@ -96,7 +96,7 @@
     host.appendChild(card('GERÄTE GESAMT', o.total, 'in ' + o.deptCount + ' Abteilungen'));
     host.appendChild(card('AKTUELL INVENTARISIERT', o.current, (o.missing + o.stale) + ' ohne aktuelle Meldung', 'green'));
     host.appendChild(card('UPGRADE NÖTIG', o.upgradeNeeded, 'RAM · Alter · SSD · Win 11', 'amber'));
-    host.appendChild(card('Ø ALTER', String(o.avgAgeYears).replace('.', ','), o.old5 + ' Geräte ' + (o.oldAgeLabel || '> 5 Jahre'), '', ' J.'));
+    host.appendChild(card('Ø ALTER', ViewModel.fmtDe(o.avgAgeYears), o.old5 + ' Geräte ' + (o.oldAgeLabel || '> 5 Jahre'), '', ' J.'));
     $('#navWarnBadge').textContent = o.upgradeNeeded;
   }
 

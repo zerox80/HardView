@@ -161,7 +161,7 @@ pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser
 
     if !q.is_empty() {
         users.retain(|u| {
-            format!("{} {} {}", u.display, u.sam, u.dept)
+            format!("{} {} {} {}", u.display, u.sam, u.dept, u.mail)
                 .to_lowercase()
                 .contains(&q)
         });

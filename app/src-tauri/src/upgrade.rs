@@ -54,12 +54,17 @@ pub fn evaluate(th: &Thresholds, f: &DeviceFacts) -> Eval {
     }
 
     let future_timestamp = matches!(f.last_seen_days, Some(d) if d < -1);
-    let stale = matches!(f.last_seen_days, Some(d) if d > th.stale_days) || future_timestamp;
+    let timestamp_missing = f.last_seen_days.is_none();
+    let stale = future_timestamp
+        || timestamp_missing
+        || matches!(f.last_seen_days, Some(d) if d > th.stale_days);
     if stale {
         Eval {
             status: "stale".into(),
             status_label: if future_timestamp {
                 "Unplausibel · Zeitstempel in Zukunft".into()
+            } else if timestamp_missing {
+                "Unplausibel · Zeitstempel fehlt".into()
             } else {
                 "Veraltet · Agent meldet nicht".into()
             },

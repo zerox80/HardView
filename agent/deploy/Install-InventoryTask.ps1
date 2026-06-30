@@ -67,6 +67,15 @@ function ConvertTo-SingleQuotedLiteral {
     return "'" + ($Value -replace "'", "''") + "'"
 }
 
+# CommandLineToArgvW (vom Task-Scheduler-Host fuer den Prozessstart genutzt) interpretiert
+# eine ungerade Anzahl Backslashes direkt vor einem schliessenden Anfuehrungszeichen als
+# Escape fuer das Quote selbst -> das Argument wuerde nicht korrekt geschlossen. Ein
+# trailing Backslash-Lauf muss deshalb verdoppelt werden, bevor er in "..." eingebettet wird.
+function ConvertTo-SafeDoubleQuotedArg {
+    param([Parameter(Mandatory)] [string] $Value)
+    return ($Value -replace '(\\+)$', '$1$1')
+}
+
 if ($Uninstall) {
     Unregister-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -Confirm:$false -ErrorAction SilentlyContinue
     Write-Host "Aufgabe '$TaskPath$TaskName' entfernt."
@@ -146,7 +155,7 @@ try {
     $encodedDebugCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($debugCommand))
     $arg = '-NoProfile -NonInteractive -ExecutionPolicy {0} -WindowStyle Hidden -EncodedCommand {1}' -f $ExecutionPolicy, $encodedDebugCommand
 } else {
-    $arg = '-NoProfile -NonInteractive -ExecutionPolicy {0} -WindowStyle Hidden -File "{1}" -OutputDir "{2}"' -f $ExecutionPolicy, $ScriptPath, $OutputDir
+    $arg = '-NoProfile -NonInteractive -ExecutionPolicy {0} -WindowStyle Hidden -File "{1}" -OutputDir "{2}"' -f $ExecutionPolicy, (ConvertTo-SafeDoubleQuotedArg $ScriptPath), (ConvertTo-SafeDoubleQuotedArg $OutputDir)
 }
 
 $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument $arg

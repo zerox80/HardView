@@ -6,17 +6,32 @@ use std::collections::HashMap;
 pub fn build_overview(devs: &[DeviceFull], th: &Thresholds) -> Overview {
     let total = devs.len() as i64;
     let with_inv = devs.iter().filter(|d| d.has_inventory).count() as i64;
-    let count = |s: &str| devs.iter().filter(|d| d.status == s).count() as i64;
     let needs_upgrade = |d: &DeviceFull| {
         d.status == "upgrade" || (d.status == "stale" && !d.upgrade_reasons.is_empty())
     };
     let needs_action = |d: &DeviceFull| needs_upgrade(d) || d.status == "missing";
-    let (ok, status_upgrade, stale, missing) = (
-        count("ok"),
-        count("upgrade"),
-        count("stale"),
-        count("missing"),
-    );
+
+    // Ein einziger Durchlauf liefert sowohl die Status-Tallies als auch die
+    // Abteilungs-Aggregation (statt vier separater count()-Scans + Dept-Loop).
+    let mut ok = 0i64;
+    let mut status_upgrade = 0i64;
+    let mut stale = 0i64;
+    let mut missing = 0i64;
+    let mut dept_map: HashMap<String, (i64, i64)> = HashMap::new();
+    for d in devs {
+        match d.status.as_str() {
+            "ok" => ok += 1,
+            "upgrade" => status_upgrade += 1,
+            "stale" => stale += 1,
+            "missing" => missing += 1,
+            _ => {}
+        }
+        let e = dept_map.entry(d.dept.clone()).or_insert((0, 0));
+        e.0 += 1;
+        if needs_action(d) {
+            e.1 += 1;
+        }
+    }
     let upgrade = devs.iter().filter(|d| needs_upgrade(d)).count() as i64;
     let aged: Vec<f64> = devs.iter().filter_map(|d| d.age_years).collect();
     let avg = if aged.is_empty() {
@@ -29,41 +44,40 @@ pub fn build_overview(devs: &[DeviceFull], th: &Thresholds) -> Overview {
         .filter(|d| d.age_years.map(|a| a > th.max_age_years).unwrap_or(false))
         .count() as i64;
 
-    let mut dept_map: HashMap<String, (i64, i64)> = HashMap::new();
-    for d in devs {
-        let e = dept_map.entry(d.dept.clone()).or_insert((0, 0));
-        e.0 += 1;
-        if needs_action(d) {
-            e.1 += 1;
-        }
-    }
     let mut by_dept: Vec<DeptStat> = dept_map
         .into_iter()
-        .map(|(dept, (count, upgrade))| DeptStat {
+        .map(|(dept, (count, needs_action))| DeptStat {
             dept,
             count,
-            upgrade,
+            needs_action,
         })
         .collect();
     by_dept.sort_by(|a, b| b.count.cmp(&a.count).then(a.dept.cmp(&b.dept)));
 
+    // Bucket-Grenzen proportional zu max_age_years ableiten (statt fix 2/4/5), damit
+    // das Histogramm bei individuellen Schwellwerten zu old5/old_age_label passt.
+    // Beim Default (5,0 Jahre) reproduzieren die Faktoren exakt die fruehere feste
+    // Aufteilung 2,0/4,0/5,0 Jahre.
+    let b1 = th.max_age_years * (2.0 / 5.0);
+    let b2 = th.max_age_years * (4.0 / 5.0);
+    let b3 = th.max_age_years;
     let age_bucket = |lo: f64, hi: f64| aged.iter().filter(|&&a| a >= lo && a < hi).count() as i64;
     let age_buckets = vec![
         Bucket {
-            label: "< 2 Jahre".into(),
-            count: age_bucket(0.0, 2.0),
+            label: format!("< {} Jahre", fmt_de(b1)),
+            count: age_bucket(0.0, b1),
         },
         Bucket {
-            label: "2–4 Jahre".into(),
-            count: age_bucket(2.0, 4.0),
+            label: format!("{}–{} Jahre", fmt_de(b1), fmt_de(b2)),
+            count: age_bucket(b1, b2),
         },
         Bucket {
-            label: "4–5 Jahre".into(),
-            count: aged.iter().filter(|&&a| (4.0..=5.0).contains(&a)).count() as i64,
+            label: format!("{}–{} Jahre", fmt_de(b2), fmt_de(b3)),
+            count: aged.iter().filter(|&&a| a >= b2 && a <= b3).count() as i64,
         },
         Bucket {
-            label: "> 5 Jahre".into(),
-            count: aged.iter().filter(|&&a| a > 5.0).count() as i64,
+            label: format!("> {} Jahre", fmt_de(b3)),
+            count: aged.iter().filter(|&&a| a > b3).count() as i64,
         },
     ];
     let ram_count = |f: &dyn Fn(i64) -> bool| {

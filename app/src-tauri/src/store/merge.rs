@@ -186,6 +186,10 @@ fn build_one(
         last_seen_text(last_seen_days)
     };
 
+    let network = iv.network.clone().unwrap_or_default();
+    let bios = iv.bios.clone();
+    let win11 = iv.win11.clone();
+
     DeviceFull {
         host: host.to_string(),
         has_inventory: has_inv,
@@ -221,29 +225,21 @@ fn build_one(
         manufacturer: opt_str(&iv.manufacturer, "—"),
         model: opt_str(&iv.model, ""),
         serial_number: opt_str(&iv.serial_number, "—"),
-        bios_version: iv.bios.clone().and_then(|b| b.version).unwrap_or_default(),
-        bios_date: iv
-            .bios
-            .clone()
+        bios_version: bios.clone().and_then(|b| b.version).unwrap_or_default(),
+        bios_date: bios
             .and_then(|b| b.release_date)
             .map(|d| d.split('T').next().unwrap_or("").to_string()),
         gpus: iv.gpus.clone().unwrap_or_default(),
-        ip: iv
-            .network
-            .clone()
-            .unwrap_or_default()
-            .into_iter()
-            .find_map(|n| n.ipv4)
+        ip: network
+            .iter()
+            .find_map(|n| n.ipv4.clone())
             .unwrap_or_default(),
-        mac: iv
-            .network
-            .clone()
-            .unwrap_or_default()
-            .into_iter()
-            .find_map(|n| n.mac)
+        mac: network
+            .iter()
+            .find_map(|n| n.mac.clone())
             .unwrap_or_default(),
-        tpm: iv.win11.clone().and_then(|w| w.tpm_present),
-        secure_boot: iv.win11.clone().and_then(|w| w.secure_boot),
+        tpm: win11.as_ref().and_then(|w| w.tpm_present),
+        secure_boot: win11.and_then(|w| w.secure_boot),
         ram_sticks,
         note,
         confirmed_by,
