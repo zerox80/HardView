@@ -37,6 +37,11 @@ pub fn evaluate(th: &Thresholds, f: &DeviceFacts) -> Eval {
             reasons.push(format!("Gerät alt ({} Jahre)", fmt_de(a)));
         }
     }
+    // `min_ram_gb` ist die fachliche Untergrenze ("Mindest-RAM"). Genau der
+    // Schwellwert gilt als zu knapp (inklusive Grenze, dokumentiert ueber die
+    // Golden-Vectors in shared/test-vectors/upgrade-cases.json Fall
+    // "ram-genau-am-limit-knapp"). Ein Geraet mit exakt minRamGB ist also Upgrade-
+    // Kandidat; hoehere Werte werden erst akzeptiert.
     if f.ram_gb > 0 && f.ram_gb <= th.min_ram_gb {
         reasons.push(format!("RAM knapp ({} GB)", f.ram_gb));
     }

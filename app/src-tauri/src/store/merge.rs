@@ -1,7 +1,7 @@
 use super::assignments::read_assignments;
 use super::common::{
-    avatar_color, days_since, dept_from_host, eq_ci, f2i, initials, last_seen_text, opt_str,
-    os_short, strip_domain,
+    avatar_color, days_since, dept_from_host, effective_display, eq_ci, f2i, initials,
+    last_seen_text, opt_str, os_short, strip_domain,
 };
 use super::config::default_assignments_path;
 use super::facts::{classify_ssd_state, classify_windows_11, is_solid_state_media};
@@ -104,14 +104,9 @@ fn build_one(
 
     // ----- Benutzer-Aufloesung -----
     let (user_source, user_display, note, confirmed_by, user_sam) = if let Some(a) = assign {
-        let disp = if a.user_display.is_empty() {
-            a.user.clone()
-        } else {
-            a.user_display.clone()
-        };
         (
             "manuell bestätigt",
-            disp,
+            effective_display(&a.user, &a.user_display),
             a.note.clone(),
             a.confirmed_by.clone(),
             a.user.clone(),
@@ -187,8 +182,6 @@ fn build_one(
     };
 
     let network = iv.network.clone().unwrap_or_default();
-    let bios = iv.bios.clone();
-    let win11 = iv.win11.clone();
 
     DeviceFull {
         host: host.to_string(),
@@ -225,9 +218,15 @@ fn build_one(
         manufacturer: opt_str(&iv.manufacturer, "—"),
         model: opt_str(&iv.model, ""),
         serial_number: opt_str(&iv.serial_number, "—"),
-        bios_version: bios.clone().and_then(|b| b.version).unwrap_or_default(),
-        bios_date: bios
-            .and_then(|b| b.release_date)
+        bios_version: iv
+            .bios
+            .as_ref()
+            .and_then(|b| b.version.clone())
+            .unwrap_or_default(),
+        bios_date: iv
+            .bios
+            .as_ref()
+            .and_then(|b| b.release_date.clone())
             .map(|d| d.split('T').next().unwrap_or("").to_string()),
         gpus: iv.gpus.clone().unwrap_or_default(),
         ip: network
@@ -238,8 +237,8 @@ fn build_one(
             .iter()
             .find_map(|n| n.mac.clone())
             .unwrap_or_default(),
-        tpm: win11.as_ref().and_then(|w| w.tpm_present),
-        secure_boot: win11.and_then(|w| w.secure_boot),
+        tpm: iv.win11.as_ref().and_then(|w| w.tpm_present),
+        secure_boot: iv.win11.as_ref().and_then(|w| w.secure_boot),
         ram_sticks,
         note,
         confirmed_by,
@@ -255,11 +254,7 @@ pub fn apply_manual_assignment(
     note: &str,
     confirmed_by: &str,
 ) {
-    let display = if user_display.trim().is_empty() {
-        user.to_string()
-    } else {
-        user_display.to_string()
-    };
+    let display = effective_display(user, user_display);
     d.user = display.clone();
     d.user_display = display.clone();
     d.user_sam = user.to_string();

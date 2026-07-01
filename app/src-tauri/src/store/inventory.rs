@@ -70,6 +70,17 @@ pub fn read_inventory_dir(dir: &str) -> HashMap<String, Inventory> {
             if !payload_host.eq_ignore_ascii_case(&stem) {
                 continue;
             }
+            // Sanity-Bounds an Werten, die am direktesten in Bewertungen und Uebersichten
+            // einfliessen: negatives/extremes Alter oder kaputte Floats wuerden absurde
+            // Anzeigen ("Gerät alt (−5 Jahre)") erzeugen. Wir verwerfen nur das Feld
+            // (auf None), nicht die ganze Inventardatei, sodass z. B. ein aktuell
+            // gemeldeter Rechner mit falschem BIOS-Datum trotzdem CPU/RAM-Daten
+            // beisteuert.
+            if let Some(a) = inv.age_years {
+                if !a.is_finite() || !(0.0..=30.0).contains(&a) {
+                    inv.age_years = None;
+                }
+            }
             inv.hostname = Some(stem.clone());
             out.entry(stem.to_uppercase()).or_insert(inv);
         }

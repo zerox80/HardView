@@ -242,9 +242,20 @@ fn control_dir_for(data_dir: &str) -> PathBuf {
         .map(|s| s.eq_ignore_ascii_case("incoming"))
         .unwrap_or(false)
     {
-        data_path.parent().unwrap_or(data_path)
+        // data_dir endet auf "incoming" -> Control-Ordner daneben.
+        data_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(data_path)
     } else {
-        data_path.parent().unwrap_or_else(|| Path::new(""))
+        // Fallback: Eltern-Ordner von data_dir; bei rein relativem Pfad ohne
+        // Eltern-Komponente greift das anschliessende absolute-Pfad-Pflichttor
+        // (hardened_config_path -> "muss ein absoluter Pfad sein"), sodass nie ein
+        // relativer Control-Pfad (z. B. bloss "control") als trusted gilt.
+        data_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(data_path)
     };
     base.join("control")
 }

@@ -141,8 +141,8 @@ pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser
     // 2) Fallback: eindeutige Benutzer aus den Geraetedaten (CSV/Inventar)
     if users.is_empty() {
         let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
-        let devs = ensure_devices(&mut inner).clone();
-        users = fallback_users_from_devices(&devs);
+        let devs = ensure_devices(&mut inner);
+        users = fallback_users_from_devices(devs);
     }
 
     Ok(filter_and_truncate(users, &q))

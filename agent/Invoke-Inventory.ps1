@@ -64,7 +64,9 @@ function Write-InvLog {
         if ((Test-Path $log) -and ((Get-Item $log).Length -gt 512KB)) {
             Move-Item $log (Join-Path $LogDir 'agent.1.log') -Force
         }
-        Add-Content -LiteralPath $log -Value $line -Encoding UTF8
+        # PS 5.1 -Encoding UTF8 wuerde BOM schreiben -> nach Rotation gemischter
+        # BOM-Zustand. Daher explizit UTF-8 ohne BOM anhaengen.
+        [System.IO.File]::AppendAllText($log, ($line + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     } catch { }
 }
 
@@ -118,14 +120,22 @@ $memArr = Get-CimSafe -Class 'Win32_PhysicalMemoryArray'
 $gpu  = Get-CimSafe -Class 'Win32_VideoController'
 
 # --- Hostname / Domaene
-$hostname = $env:COMPUTERNAME
-if ($cs -and $cs.Name) { $hostname = $cs.Name }
+# Vorzugsweise den DNS-Hostnamen verwenden (Win32_ComputerSystem.Name liefert nur den
+# NetBIOS-Namen <=15 Zeichen; laenere Win11-Hostnamen wuerden sonst im Dateinamen
+# und damit beim Host-Match mit AD-Eintraegen trunkiert werden).
+$hostname = if ($cs -and $cs.DNSHostName) { [string]$cs.DNSHostName }
+            elseif ($cs -and $cs.Name) { [string]$cs.Name }
+            else { $env:COMPUTERNAME }
 $hostname = $hostname -replace '[^a-zA-Z0-9-]', ''
 $domain = if ($cs) { $cs.Domain } else { $env:USERDNSDOMAIN }
 
 # --- Benutzer (interaktiv + zuletzt angemeldet; unter SYSTEM ist UserName ggf. leer)
 $currentUser = if ($cs) { $cs.UserName } else { $null }
 $lastUser = $null
+# Hinweis: LastLoggedOnUser unter LogonUI wird NUR bei aktiviertem AutoLogon zuverlaessig
+# gesetzt. Ohne AutoLogon bleibt der Wert leer oder veraltet; das Feld "lastLoggedOnUser"
+# ist daher ein best-effort-Signal und nicht als kanonische "zuletzt angemeldet"-Quelle
+# zu verstehen (zuverlaessig ist das 4624 Security-Log bzw. Win32_LoggedOnUser).
 try {
     $lu = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI' `
             -Name 'LastLoggedOnUser' -ErrorAction Stop
@@ -157,7 +167,13 @@ if ($mem) {
         }
     }
 }
-$slotsTotal = if ($memArr) { [int](@($memArr)[0].MemoryDevices) } else { $sticks.Count }
+# SlotsTotal ueber alle PhysicalMemoryArray-Instanzen summieren — bei
+# Multi-Socket-Servern gibt es mehrere Arrays, und nur das erste zu nehmen wuerde
+# systematisch zu wenig Slots melden. Fallback: Anzahl belegter Slots.
+$slotsTotal = if ($memArr) {
+    (@($memArr) | Measure-Object -Property MemoryDevices -Sum).Sum
+} else { $sticks.Count }
+if (-not $slotsTotal -or $slotsTotal -lt $sticks.Count) { $slotsTotal = $sticks.Count }
 $ramObj = [ordered]@{
     totalGB   = [math]::Round($totalBytes / 1GB, 0)
     slotsUsed = $sticks.Count
@@ -184,16 +200,46 @@ try {
     }
 } catch {
     $script:CollectionErrors.Add(('Get-PhysicalDisk: {0}' -f $_.Exception.Message))
-    $dd = Get-CimSafe -Class 'Win32_DiskDrive'
-    if ($dd) {
-        foreach ($d in @($dd)) {
-            $media = 'Unbekannt'
-            if ($d.Model -match 'SSD|NVMe') { $media = 'SSD' }
+    # Bevor wir auf den unzuverlaessigen Win32_DiskDrive-Modellstring-Regex
+    # zurueckfallen, probieren wir zusaetzlich das Storage-Sub-Namespace
+    # (root\Microsoft\Windows\Storage / MSFT_PhysicalDisk). Dort ist MediaType
+    # verfuegbar, auch wenn das Top-Level-Cmdlet gesperrt war (z. B. Server 2016).
+    $storageDisks = $null
+    try {
+        $storageDisks = Get-CimInstance -Namespace 'root\Microsoft\Windows\Storage' `
+            -ClassName MSFT_PhysicalDisk -ErrorAction Stop
+    } catch {
+        $storageDisks = $null
+    }
+    if ($storageDisks) {
+        foreach ($d in @($storageDisks)) {
+            $media = switch ([int]$d.MediaType) {
+                3 { 'HDD' } 4 { 'SSD' } 5 { 'SCM' } default { 'Unbekannt' }
+            }
+            if ($media -eq 'Unbekannt' -and "$($d.BusType)" -eq 'NVMe') { $media = 'SSD' }
             $disks += [ordered]@{
-                model     = if ($d.Model) { $d.Model.Trim() } else { $null }
+                model     = if ($d.FriendlyName) { $d.FriendlyName.Trim() } else { $null }
                 sizeGB    = [math]::Round([int64]$d.Size / 1GB, 0)
                 mediaType = $media
-                busType   = [string]$d.InterfaceType
+                busType   = [string]$d.BusType
+            }
+        }
+    } else {
+        $dd = Get-CimSafe -Class 'Win32_DiskDrive'
+        if ($dd) {
+            foreach ($d in @($dd)) {
+                $media = 'Unbekannt'
+                # Modellstring-Heuristik nur als letzter Ausweg — viele SATA/NVMe-SSDs
+                # enthalten kein "SSD"/"NVMe" im Modellnamen und werden sonst falsch
+                # klassifiziert (zentrales Disk-Feld der Upgrade-Bewertung).
+                if ($d.Model -match 'SSD|NVMe') { $media = 'SSD' }
+                elseif ("$($d.InterfaceType)" -eq 'NVMe') { $media = 'SSD' }
+                $disks += [ordered]@{
+                    model     = if ($d.Model) { $d.Model.Trim() } else { $null }
+                    sizeGB    = [math]::Round([int64]$d.Size / 1GB, 0)
+                    mediaType = $media
+                    busType   = [string]$d.InterfaceType
+                }
             }
         }
     }
@@ -221,6 +267,14 @@ if ($null -ne $biosAge -and ($null -eq $osAge -or $biosAge -ge $osAge)) {
     $ageYears = [math]::Round($osAge, 1)
     $ageSource = 'osInstall'
 }
+# Sanity-Bounds: negatives Alter (BIOS-Datum in der Zukunft) oder absurde Werte
+# (defektes DateTime.MinValue → ~424 Jahre) verfaelschen Bewertungen und Buckets.
+# Wir setzen fuer unzulaessige Werte $null und markieren die Quelle als unplausibel.
+if ($null -ne $ageYears -and ($ageYears -lt 0 -or $ageYears -gt 30)) {
+    $script:CollectionErrors.Add(('ageYears unplausibel ({0}); BIOS/InstallDate-Datum verworfen' -f $ageYears))
+    $ageYears = $null
+    $ageSource = $null
+}
 
 # --- OS
 $osObj = [ordered]@{
@@ -232,7 +286,12 @@ $osObj = [ordered]@{
     architecture  = if ($os) { $os.OSArchitecture } else { $null }
 }
 
-# --- Win11-Readiness (optional, best effort; unter SYSTEM meist verfuegbar)
+# --- Win11-Preflight (TPM/SecureBoot, best effort; KEINE vollstaendige Readiness!)
+# Benannt als tpmSecureBootPreflight, damit Downstream-Konsumenten nicht
+# versehentlich tpmPresent+secureBoot als Win11-Ready lesen. Eine vollstaendige
+# Win11-Readiness erfordert CPU-Family, min. 2 Cores, 4+ GB RAM, 64+ GB Storage
+# neben TPM 2.0; diese vollstaendige Pruefung obliegt der Planungs-Logik, nicht
+# dem Agent.
 $tpmPresent = $null; $tpmVersion = $null; $secureBoot = $null
 try {
     $tpm = Get-CimInstance -Namespace 'root\cimv2\Security\MicrosoftTpm' -ClassName 'Win32_Tpm' -ErrorAction Stop
@@ -278,7 +337,9 @@ $inventory = [ordered]@{
     disks            = $disks
     gpus             = $gpus
     os               = $osObj
-    win11            = [ordered]@{
+    # Hinweis: Feldname bleibt "win11" zwecks Schema-Kompatibilitaet, enthaelt aber
+# nur TPM/SecureBoot-Preflight — keine vollstaendige Readiness (CPU/RAM/Size fehlen).
+win11            = [ordered]@{
         tpmPresent = $tpmPresent
         tpmVersion = $tpmVersion
         secureBoot = $secureBoot

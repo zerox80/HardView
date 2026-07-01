@@ -35,6 +35,19 @@ pub(super) fn initials(name: &str) -> String {
         s.to_uppercase()
     }
 }
+/// Liefert die anzuzeigende Form des Benutzers. Ist `user_display` leer, fuehren wir
+/// `user` (SAM-Account) als Darstellung; beide werden in der DB in derselben Form
+/// gespeichert. So bleibt die Darstellung ueber alle drei Stellen konsistent:
+/// roster merge (build_one), manuelle Zuordnung (apply_manual_assignment) und die
+/// Persist-Logik (assign persist).
+pub(super) fn effective_display(user: &str, display: &str) -> String {
+    let d = display.trim();
+    if d.is_empty() {
+        user.to_string()
+    } else {
+        d.to_string()
+    }
+}
 pub(super) fn avatar_color(host: &str) -> String {
     let mut n: u32 = 0;
     for b in host.bytes() {
@@ -44,8 +57,11 @@ pub(super) fn avatar_color(host: &str) -> String {
 }
 pub(super) fn os_short(caption: &str, build: &str) -> String {
     let b = build.rsplit('.').next().unwrap_or(build);
+    // Buildnummer -> Windows-Generation. Nur publizierte RTM/Half-Year-Updates
+    // (keine spekulative Future-Builds einfuehren — bei unbekannten Builds faellt
+    // die Caption-basierte Erkennung unten als Fallback zurueck).
     let inferred_windows = match b {
-        "22631" | "22621" | "26100" | "26200" => Some("Win 11"),
+        "22000" | "22631" | "22621" | "26100" => Some("Win 11"),
         "19045" | "19044" => Some("Win 10"),
         _ => None,
     };
@@ -59,12 +75,12 @@ pub(super) fn os_short(caption: &str, build: &str) -> String {
         caption
     };
     let label = match b {
+        "22000" => "21H2",
         "22631" => "23H2",
         "22621" => "22H2",
         "19045" => "22H2",
         "19044" => "21H2",
         "26100" => "24H2",
-        "26200" => "25H2",
         _ => "",
     };
     if label.is_empty() {

@@ -18,7 +18,10 @@
     return Number(v).toFixed(1).replace('.', ',');
   }
 
-  const api = { PALETTE, hashColor, fmtDe };
+  // Default-Bewertungsschwellen — spiegeln Thresholds::default() aus model.rs.
+  const DEFAULT_THRESHOLDS = { minRamGB: 8, maxAgeYears: 5, staleDays: 30, requireSsd: true, minCpuCores: 4, minCpuClockMhz: 0, targetRamGB: 16 };
+
+  const api = { PALETTE, hashColor, fmtDe, DEFAULT_THRESHOLDS };
   if (typeof window !== 'undefined') { window.HVShared = api; }
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })();
