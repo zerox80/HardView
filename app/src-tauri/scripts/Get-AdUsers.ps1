@@ -3,6 +3,10 @@
     Gibt aktivierte Benutzer als JSON-Array aus: sam, display, dept, mail.
     Wird vom HardView-Backend (ad.rs) ohne Fenster aufgerufen.  #>
 $ErrorActionPreference = 'Stop'
+# stdout fuer die an Rust/serde_json gelieferten Bytes zwingend als UTF-8 (ohne BOM)
+# setzen — sonst kodiert PS 5.1 nach OEM-Codepage (z. B. cp850/cp1252) und Umlaute in
+# displayName/department/mail würden beim Rust-Parse korrupt werden.
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch { }
 try {
     function ConvertTo-LdapFilterValue {
         param([AllowNull()] [string] $Value)
@@ -28,7 +32,6 @@ try {
     # Aktivierte Personen-/Benutzerobjekte (deaktivierte via UAC-Bit 2 ausgeschlossen)
     $enabledFilter = '(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))'
     $search = [string] $env:HARDVIEW_AD_SEARCH
-    if ($null -eq $search) { $search = '' }
     $search = $search.Trim()
     if ([string]::IsNullOrWhiteSpace($search)) {
         $ds.Filter = $enabledFilter
@@ -45,17 +48,24 @@ try {
     # filtert LDAP bereits serverseitig, deshalb reicht ein kleineres Limit.
     $max = if ([string]::IsNullOrWhiteSpace($search)) { 20000 } else { 500 }
     $list = New-Object System.Collections.Generic.List[object]
-    foreach ($r in $ds.FindAll()) {
-        $p = $r.Properties
-        $sam = if ($p['samaccountname'].Count) { [string]$p['samaccountname'][0] } else { '' }
-        if (-not $sam) { continue }
-        $disp = if ($p['displayname'].Count) { [string]$p['displayname'][0] }
-                elseif ($p['givenname'].Count -or $p['sn'].Count) { (('{0} {1}' -f [string]$p['givenname'][0], [string]$p['sn'][0]).Trim()) }
-                else { $sam }
-        $dept = if ($p['department'].Count) { [string]$p['department'][0] } else { '' }
-        $mail = if ($p['mail'].Count) { [string]$p['mail'][0] } else { '' }
-        $list.Add([ordered]@{ sam = $sam; display = $disp; dept = $dept; mail = $mail })
-        if ($list.Count -ge $max) { break }
+    # FindAll() liefert eine IDisposable SearchResultCollection, die AD-Verbindungen/
+    # Ressourcen haelt — explizit freigeben (PS-Gotcha, sonst erst per GC-Finalisierung).
+    $results = $ds.FindAll()
+    try {
+        foreach ($r in $results) {
+            $p = $r.Properties
+            $sam = if ($p['samaccountname'].Count) { [string]$p['samaccountname'][0] } else { '' }
+            if (-not $sam) { continue }
+            $disp = if ($p['displayname'].Count) { [string]$p['displayname'][0] }
+                    elseif ($p['givenname'].Count -or $p['sn'].Count) { (('{0} {1}' -f [string]$p['givenname'][0], [string]$p['sn'][0]).Trim()) }
+                    else { $sam }
+            $dept = if ($p['department'].Count) { [string]$p['department'][0] } else { '' }
+            $mail = if ($p['mail'].Count) { [string]$p['mail'][0] } else { '' }
+            $list.Add([ordered]@{ sam = $sam; display = $disp; dept = $dept; mail = $mail })
+            if ($list.Count -ge $max) { break }
+        }
+    } finally {
+        $results.Dispose()
     }
     # Immer als Array ausgeben (auch bei 0/1 Treffern)
     [Console]::Out.Write((ConvertTo-Json -InputObject @($list) -Depth 3 -Compress))

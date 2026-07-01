@@ -2,8 +2,10 @@
 (function () {
   'use strict';
   const H = window.HardView;
-  const { $, DEFAULT_THRESHOLDS, TAURI, VIEWS, el, invoke, loadData, renderDrawer,
+  const { $, DEFAULT_THRESHOLDS, VIEWS, el, invoke, loadData, renderDrawer,
     renderKpis, renderList, renderRows, state, svg, toast, ViewModel } = H;
+  // TAURI ist eine Funktion (zur-Laufzeit-Lookup, kein Snapshot) — gibt die API oder null.
+  const tapi = H.TAURI;
   const { hashColor: colorFor } = window.HVShared;
 
   // ---------------- Zuordnungs-Modal ----------------
@@ -83,8 +85,7 @@
     const max = Math.max(1, ...items.map((i) => i.count));
     return items.map((i) => el('div', { class: 'distrow' },
       el('div', { class: 'lbl' }, i.label || i.dept),
-      el('div', { class: 'track' }, el('div', { style: { width: Math.round((i.count / max) * 100) + '%', background: colorFn ? colorFn(i) : 'var(--blue)' } })),
-      el('div', { class: 'num' }, i.count)));
+      el('div', { class: 'track' }, el('div', { style: { width: Math.round((i.count / max) * 100) + '%', background: colorFn ? colorFn(i) : 'var(--blue)' } })), el('div', { class: 'num' }, i.count)));
   }
   function renderDash() {
     const host = $('#dashView'); host.innerHTML = '';
@@ -127,7 +128,7 @@
       el('h3', {}, 'Status & Abteilungen'),
       el('div', { style: { display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' } },
         el('span', { class: 'tag ok' }, 'OK ' + o.status.ok),
-        el('span', { class: 'tag upgrade' }, 'Upgrade ' + o.status.upgrade),
+        el('span', { class: 'tag upgrade' }, 'Upgrade ' + o.upgradeNeeded),
         el('span', { class: 'tag stale' }, 'Veraltet ' + o.status.stale),
         el('span', { class: 'tag missing' }, 'Kein Agent ' + o.status.missing)),
       distBars(o.byDept, (i) => i.needsAction > 0 ? 'var(--amber)' : 'var(--blue)')));
@@ -254,23 +255,40 @@
     document.querySelectorAll('#nav .nav-item').forEach((n) => {
       n.addEventListener('click', () => switchView(n.getAttribute('data-view')));
     });
-    $('#searchInput').addEventListener('input', (e) => { state.q = e.target.value.toLowerCase().trim(); renderList(); });
+    let searchTimer = null;
+    $('#searchInput').addEventListener('input', (e) => {
+      state.q = e.target.value.toLowerCase().trim();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(renderList, 150);
+    });
+    let refreshing = false;
     $('#refreshBtn').addEventListener('click', async () => {
-      $('#refreshLabel').textContent = 'Lädt …';
+      if (refreshing) return;
+      refreshing = true;
+      const btn = $('#refreshBtn');
+      btn.classList.add('busy'); $('#refreshLabel').textContent = 'Lädt …';
       try { await invoke('refresh'); await loadData(); toast('Daten aktualisiert.'); } catch (e) { toast('Aktualisieren fehlgeschlagen: ' + e); }
-      $('#refreshLabel').textContent = 'Aktualisieren';
+      $('#refreshLabel').textContent = 'Aktualisieren'; btn.classList.remove('busy'); refreshing = false;
     });
     $('#exportBtn').addEventListener('click', doExport);
 
     // Fenstersteuerung (nur in Tauri aktiv)
     document.querySelectorAll('.winbtn').forEach((b) => b.addEventListener('click', async () => {
-      if (!(TAURI && TAURI.window)) return;
-      const w = TAURI.window.getCurrentWindow();
+      const t = tapi();
+      if (!(t && t.window)) return;
+      const w = t.window.getCurrentWindow();
       const a = b.getAttribute('data-win');
       if (a === 'min') w.minimize(); else if (a === 'max') w.toggleMaximize(); else w.close();
     }));
 
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { state.selected = null; $('#drawerMount').innerHTML = ''; $('#modalMount').innerHTML = ''; renderRows(); } });
+    // Escape schliesst nur die oberste Schicht: zuerst ein offenes Modal, dann den Drawer.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const modal = $('#modalMount');
+      if (modal && modal.children.length) { modal.innerHTML = ''; return; }
+      const drawer = $('#drawerMount');
+      if (drawer && drawer.children.length) { state.selected = null; drawer.innerHTML = ''; renderRows(); }
+    });
   }
 
   H.openAssign = openAssign;

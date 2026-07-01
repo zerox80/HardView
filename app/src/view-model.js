@@ -18,7 +18,7 @@
   }
 
   function isUpgradeCandidate(device) {
-    const reasons = device.upgradeReasons || device.upgrade_reasons || [];
+    const reasons = device.upgradeReasons || [];
     return device.status === 'upgrade' || (device.status === 'stale' && reasons.length > 0);
   }
 
@@ -35,23 +35,15 @@
     return haystack.indexOf(query) !== -1;
   }
 
-  function sortValue(device, key) {
-    switch (key) {
-      case 'user': return lower(device.user);
-      case 'cpu': return lower(device.cpu);
-      case 'ram': return Number(device.ramGB) || 0;
-      case 'age': return device.ageYears == null ? -1 : Number(device.ageYears);
-      case 'status': return STATUS_RANK[device.status] == null ? 99 : STATUS_RANK[device.status];
-      default: return lower(device.host);
-    }
+  // Locale-bewusste deutsche Kollation (Umlaute wie ä/ö/ü korrekt einsortieren,
+  // Ziffern numerisch: "WS-AB-2" vor "WS-AB-10"). Wird fuer Host-, User- und
+  // CPU-Vergleiche genutzt; numerische Schluessel vergleichen wir direkt.
+  const LOCALE_OPTS = { numeric: true, sensitivity: 'base' };
+  function compareText(a, b) {
+    return String(a).localeCompare(String(b), 'de', LOCALE_OPTS);
   }
-
   function compareHost(a, b) {
-    const av = lower(a.host);
-    const bv = lower(b.host);
-    if (av < bv) return -1;
-    if (av > bv) return 1;
-    return 0;
+    return compareText(lower(a.host), lower(b.host));
   }
 
   function visibleDevices(devices, state) {
@@ -61,13 +53,36 @@
     const sort = viewState.sort || 'host';
     const dir = viewState.dir === 'desc' ? -1 : 1;
 
+    // Sortier-Schluessel pro Geraet einmal vorausberechnen (kein O(n log n) lower-
+    // casing je Vergleich) — Strings direkt via localeCompare in der Sort-Methode.
+    const cache = new Map();
+    const keyOf = (d) => {
+      if (cache.has(d)) return cache.get(d);
+      let key;
+      switch (sort) {
+        case 'ram': key = Number(d.ramGB) || 0; break;
+        case 'age': key = d.ageYears == null ? -1 : Number(d.ageYears); break;
+        case 'status': key = STATUS_RANK[d.status] == null ? 99 : STATUS_RANK[d.status]; break;
+        case 'user': key = lower(d.user); break;
+        case 'cpu': key = lower(d.cpu); break;
+        default: key = lower(d.host); break;
+      }
+      cache.set(d, key);
+      return key;
+    };
+
     return (devices || [])
       .filter((device) => matchesFilter(device, filter) && matchesQuery(device, query))
       .sort((a, b) => {
-        const av = sortValue(a, sort);
-        const bv = sortValue(b, sort);
-        if (av < bv) return -1 * dir;
-        if (av > bv) return 1 * dir;
+        const av = keyOf(a);
+        const bv = keyOf(b);
+        let cmp;
+        if (typeof av === 'number' && typeof bv === 'number') {
+          cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        } else {
+          cmp = compareText(av, bv);
+        }
+        if (cmp !== 0) return cmp * dir;
         return compareHost(a, b);
       });
   }

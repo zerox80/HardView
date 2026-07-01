@@ -1,11 +1,18 @@
 use super::common::now_iso;
 use std::fs::{self, OpenOptions};
+use std::io::Read;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
 const ASSIGNMENT_LOCK_TIMEOUT: Duration = Duration::from_secs(10);
+/// Lock-Dateien, die aelter als ASSIGNMENT_LOCK_STALE sind, gelten als "vermutlich
+/// verwaist" — wir uebernehmen sie aber NUR dann, wenn wir zusaetzlich bestaetigen
+/// koennen, dass der hinterlegte Prozess nicht mehr lebt (PID-Liveness-Check).
+/// Ohne diese doppelte Pruefung wuerden wir bei hoher Last einem lebenden Writer
+/// sein frisches Lock stehlen (klassische TOCTOU-Luecke zwischen Staleness-Pruefung
+/// und remove_file).
 const ASSIGNMENT_LOCK_STALE: Duration = Duration::from_secs(60);
 // ------------------------------------------------------------------ Atomic write
 pub(super) fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
@@ -95,8 +102,21 @@ pub(super) fn acquire_assignment_lock(path: &Path) -> Result<AssignmentLock, Str
                 return Ok(AssignmentLock { path: lock_path });
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                if assignment_lock_is_stale(&lock_path) {
-                    let _ = fs::remove_file(&lock_path);
+                if can_take_over_stale(&lock_path) {
+                    // Atomar auf einen Tombstone verschieben (vs. remove_file + create_new,
+                    // was eine TOCTOU-Luecke offen liesse: ein zwischenzeitlich von einem
+                    // anderen Writer angelegtes frisches Lock waere geloescht worden).
+                    // Renameschlaegt fehl, wenn ein anderer Writer das Lock bereits
+                    // uebernommen/ersetzt hat -> wir scheitern hier sicher und proben
+                    // die Schleife von vorn (kein fremdes Lock wird gestohlen).
+                    let tombstone =
+                        lock_path.with_extension(format!("stale-{}", std::process::id()));
+                    if fs::rename(&lock_path, &tombstone).is_err() {
+                        // Lock wurde inzwischen veraendert -> nicht uebernehmen.
+                        thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                    let _ = fs::remove_file(&tombstone);
                     continue;
                 }
                 if start.elapsed() >= ASSIGNMENT_LOCK_TIMEOUT {
@@ -116,6 +136,25 @@ pub(super) fn acquire_assignment_lock(path: &Path) -> Result<AssignmentLock, Str
     }
 }
 
+/// Entscheidet, ob ein bestehendes Lock uebernommen werden darf. Wir kombinieren
+/// zwei Bedingungen, um die oben beschriebene TOCTOU-Luecke zu schliessen:
+///   (1) Lock-Datei ist aelter als ASSIGNMENT_LOCK_STALE (heuristische Staleness
+///       gegen hängengebliebene/abgestürzte Writer).
+///   (2) Zusaetzlich lesen wir den hinterlegten PID und pruefen per OS, ob dieser
+///       Prozess noch existiert. Nur wenn wir bestaetigen koennen, dass der PID nicht
+///       (mehr) aktiv ist, uebernehmen wir. Ist der PID nicht lesbar oder laesst er
+///       sich nicht pruefen (z. B. Access-Denied), uebernehmen wir NICHT — wir
+///       warten lieber das Timeout ab, als ein evtl. lebendes Lock zu stehlen.
+fn can_take_over_stale(path: &Path) -> bool {
+    if !assignment_lock_is_stale(path) {
+        return false;
+    }
+    match read_lock_pid(path) {
+        Some(pid) => !is_process_alive(pid),
+        None => false,
+    }
+}
+
 fn assignment_lock_is_stale(path: &Path) -> bool {
     fs::metadata(path)
         .and_then(|m| m.modified())
@@ -123,4 +162,59 @@ fn assignment_lock_is_stale(path: &Path) -> bool {
         .and_then(|modified| modified.elapsed().ok())
         .map(|age| age >= ASSIGNMENT_LOCK_STALE)
         .unwrap_or(false)
+}
+
+fn read_lock_pid(path: &Path) -> Option<u32> {
+    let mut content = String::new();
+    {
+        let mut f = OpenOptions::new().read(true).open(path).ok()?;
+        f.read_to_string(&mut content).ok()?;
+    }
+    for line in content.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("pid=") {
+            if let Ok(pid) = rest.trim().parse::<u32>() {
+                return Some(pid);
+            }
+        }
+    }
+    None
+}
+
+/// Prueft, ob ein Prozess mit der angegebenen PID noch aktiv ist. Auf Windows per
+/// OpenProcess + GetExitCodeProcess; auf anderen Plattformen koennen wir das nicht
+/// portabel pruefen und gehen konservativ davon aus, der Prozess sei noch am Leben
+/// (kein Lock-Steal).
+#[cfg(windows)]
+fn is_process_alive(pid: u32) -> bool {
+    use std::os::raw::c_void;
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn GetExitCodeProcess(h: *mut c_void, code: *mut u32) -> i32;
+        fn CloseHandle(h: *mut c_void) -> i32;
+        fn GetLastError() -> u32;
+    }
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const STILL_ACTIVE: u32 = 259;
+    const ERROR_INVALID_PARAMETER: u32 = 87;
+    unsafe {
+        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if h.is_null() {
+            // OpenProcess liefert NULL, wenn der Prozess nicht existiert (-> tot, wir
+            // duermen uebernehmen) ODER wenn wir keine Berechtigung haben (-> evtl.
+            // am Leben, konservativ nicht uebernehmen). Unterscheidung anhand des
+            // letzten Fehlers: ERROR_INVALID_PARAMETER bedeutet "PID nicht aktiv".
+            let last = GetLastError();
+            return last != ERROR_INVALID_PARAMETER;
+        }
+        let mut code: u32 = 0;
+        let ok = GetExitCodeProcess(h, &mut code);
+        CloseHandle(h);
+        ok != 0 && code == STILL_ACTIVE
+    }
+}
+
+#[cfg(not(windows))]
+fn is_process_alive(_pid: u32) -> bool {
+    true
 }

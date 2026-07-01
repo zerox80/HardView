@@ -2,9 +2,12 @@
 (function () {
   'use strict';
 
-  const TAURI = window.__TAURI__;
+  // __TAURI__ zur Laufzeit lesen (nicht als Snapshot) — falls Tauri nachgeladen
+  // injiziert wird, greift die IPC-Bruecke trotzdem. Mock bleibt Fallback.
+  function tauriApi() { return window.__TAURI__; }
   async function invoke(cmd, args) {
-    if (TAURI && TAURI.core && TAURI.core.invoke) return TAURI.core.invoke(cmd, args || {});
+    const t = tauriApi();
+    if (t && t.core && t.core.invoke) return t.core.invoke(cmd, args || {});
     return window.__MOCK__.invoke(cmd, args || {});
   }
 
@@ -43,7 +46,7 @@
 
   // ---------------- state ----------------
   const state = { view: 'inventar', devices: [], overview: null, settings: null, q: '', filter: 'all', sort: 'host', dir: 'asc', selected: null };
-  const DEFAULT_THRESHOLDS = { minRamGB: 8, maxAgeYears: 5, staleDays: 30, requireSsd: true, minCpuCores: 4, minCpuClockMhz: 0, targetRamGB: 16 };
+  const DEFAULT_THRESHOLDS = window.HVShared.DEFAULT_THRESHOLDS;
   const ViewModel = window.HardViewViewModel;
 
   const VIEWS = {
@@ -115,7 +118,7 @@
         label, el('span', { class: 'cnt' }, count));
       host.appendChild(seg);
     });
-    const vis = visibleCount == null ? visible().length : visibleCount;
+    const vis = visibleCount == null ? 0 : visibleCount;
     $('#resultCount').textContent = vis + ' von ' + o.total;
   }
 
@@ -144,10 +147,12 @@
     const rows = list || visible();
     if (!rows.length) { host.appendChild(el('div', { class: 'empty' }, 'Keine Geräte für diese Filterung.')); return; }
     rows.forEach((d) => {
-      const ramTarget = Math.max(1, Number(d.ramTargetGB) || DEFAULT_THRESHOLDS.targetRamGB);
+      const rt = Number(d.ramTargetGB);
+      const ramTarget = Math.max(1, Number.isFinite(rt) && rt > 0 ? rt : DEFAULT_THRESHOLDS.targetRamGB);
       const ramPct = Math.min(100, Math.max(0, Math.round((d.ramGB / ramTarget) * 100)));
+      const isUpgrade = ViewModel.isUpgradeCandidate(d);
       const row = el('div', {
-        class: 'row grid-cols' + (d.status === 'upgrade' ? ' warn' : '') + (state.selected === d.host ? ' sel' : '') + (d.status === 'stale' || d.status === 'missing' ? ' dim' : ''),
+        class: 'row grid-cols' + (isUpgrade ? ' warn' : '') + (state.selected === d.host ? ' sel' : '') + (!isUpgrade && (d.status === 'stale' || d.status === 'missing') ? ' dim' : ''),
         onclick: () => { state.selected = d.host; renderRows(rows); renderDrawer(); }
       },
         el('div', { style: { display: 'flex', justifyContent: 'center' } }, el('div', { class: 'dot ' + d.status })),
@@ -249,7 +254,7 @@
   window.HardView = {
     $,
     DEFAULT_THRESHOLDS,
-    TAURI,
+    TAURI: tauriApi,
     VIEWS,
     el,
     invoke,

@@ -4,32 +4,34 @@
  * In der echten Tauri-App ist window.__TAURI__ vorhanden und dieser Code wird NICHT genutzt.
  * Die Berechnungslogik hier spiegelt store.rs/upgrade.rs wider (Quelle der Wahrheit = Rust). */
 (function () {
-  const { hashColor, fmtDe } = (typeof window !== 'undefined' && window.HVShared)
+  const shared = (typeof window !== 'undefined' && window.HVShared)
     ? window.HVShared
     : require('./shared.js');
-  const DEFAULT_THRESHOLDS = { minRamGB: 8, maxAgeYears: 5, staleDays: 30, requireSsd: true, minCpuCores: 4, minCpuClockMhz: 0, targetRamGB: 16 };
+  const { hashColor, fmtDe, DEFAULT_THRESHOLDS } = shared;
   let THRESH = Object.assign({}, DEFAULT_THRESHOLDS);
 
   // Roh-PCs (entspricht sample-data). inv=false -> in CSV aber ohne Agent-JSON.
+  // clock: realistischer MaxClockSpeed-Wert (WMI meldet Basis-Takt), damit die
+  // CPU-Takt-Schwelle in der Vorschau demonstrierbar ist.
   const PCS = [
-    { h:'WS-MARKETING-04', f:'Lena', l:'Hoffmann', d:'Marketing', cpu:'Intel Core i5-12500', c:6, t:12, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22631', age:2.1, stale:1, inv:true, mfg:'Dell Inc.', mdl:'OptiPlex 7090' },
-    { h:'WS-VERTRIEB-11', f:'Markus', l:'Bauer', d:'Vertrieb', cpu:'Intel Core i7-13700', c:16, t:24, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:1.2, stale:0, inv:true, mfg:'Lenovo', mdl:'ThinkCentre M90t' },
-    { h:'WS-BUCH-02', f:'Sabine', l:'Köhler', d:'Buchhaltung', cpu:'Intel Core i5-10400', c:6, t:12, ram:8, su:1, st:4, disk:'SSD', dgb:256, os:'Windows 10 Pro', b:'19045', age:4.6, stale:2, inv:true, mfg:'HP', mdl:'EliteDesk 800 G6' },
-    { h:'WS-IT-07', f:'Daniel', l:'Richter', d:'IT', cpu:'AMD Ryzen 7 5800X', c:8, t:16, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:3.1, stale:0, inv:true, mfg:'Custom', mdl:'Workstation', assigned:true },
-    { h:'WS-ENTW-15', f:'Tobias', l:'Wolf', d:'Entwicklung', cpu:'Intel Core i9-13900K', c:24, t:32, ram:64, su:4, st:4, disk:'SSD', dgb:2048, os:'Windows 11 Pro', b:'22631', age:0.8, stale:0, inv:true, mfg:'Dell Inc.', mdl:'Precision 3660' },
-    { h:'WS-PERSONAL-03', f:'Andrea', l:'Schulz', d:'Personal', cpu:'Intel Core i3-10100', c:4, t:8, ram:8, su:1, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19045', age:5.3, stale:3, inv:true, mfg:'HP', mdl:'ProDesk 400 G6' },
-    { h:'WS-VERTRIEB-08', f:'Kevin', l:'Braun', d:'Vertrieb', cpu:'AMD Ryzen 5 5600', c:6, t:12, ram:16, su:2, st:2, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22621', age:2.4, stale:1, inv:true, mfg:'Lenovo', mdl:'ThinkCentre M75q' },
-    { h:'WS-LAGER-01', f:'Petra', l:'Lang', d:'Lager', cpu:'Intel Core i3-8100', c:4, t:4, ram:8, su:2, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19044', age:6.7, stale:45, inv:true, mfg:'Fujitsu', mdl:'Esprimo D538' },
-    { h:'WS-ENTW-09', f:'Jonas', l:'Frank', d:'Entwicklung', cpu:'AMD Ryzen 7 7700', c:8, t:16, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:1.0, stale:0, inv:true, mfg:'Dell Inc.', mdl:'Precision 3460' },
-    { h:'WS-MARKETING-06', f:'Nina', l:'Albrecht', d:'Marketing', cpu:'Intel Core i5-12500', c:6, t:12, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22631', age:2.0, stale:0, inv:true, mfg:'Dell Inc.', mdl:'OptiPlex 7090' },
-    { h:'WS-GF-01', f:'Stefan', l:'Klein', d:'Geschäftsführung', cpu:'Intel Core i7-13700', c:16, t:24, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:1.5, stale:0, inv:true, mfg:'Lenovo', mdl:'ThinkPad X1 Carbon' },
-    { h:'WS-BUCH-05', f:'Claudia', l:'Neumann', d:'Buchhaltung', cpu:'Intel Core i5-10400', c:6, t:12, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 10 Pro', b:'19045', age:4.2, stale:4, inv:true, mfg:'HP', mdl:'EliteDesk 800 G6' },
-    { h:'WS-IT-02', f:'Sven', l:'Hartmann', d:'IT', cpu:'AMD Ryzen 9 5900X', c:12, t:24, ram:32, su:4, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:3.0, stale:0, inv:true, mfg:'Custom', mdl:'Workstation' },
-    { h:'WS-EMPFANG-01', f:'Julia', l:'Vogt', d:'Empfang', cpu:'Intel Core i3-7100', c:2, t:4, ram:8, su:2, st:2, disk:'HDD', dgb:250, os:'Windows 10 Pro', b:'19045', age:7.5, stale:6, inv:true, mfg:'Fujitsu', mdl:'Esprimo P558' },
-    { h:'WS-VERTRIEB-14', f:'Florian', l:'Maier', d:'Vertrieb', cpu:'Intel Core i5-12500', c:6, t:12, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22621', age:2.3, stale:90, inv:true, mfg:'Dell Inc.', mdl:'OptiPlex 7090' },
-    { h:'WS-ENTW-21', f:'Carolin', l:'Busch', d:'Entwicklung', cpu:'AMD Ryzen 7 5800X', c:8, t:16, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:3.2, stale:0, inv:true, mfg:'Dell Inc.', mdl:'Precision 3650' },
-    { h:'WS-BUCH-08', f:'Thomas', l:'Wagner', d:'Buchhaltung', cpu:'Intel Core i5-9500', c:6, t:6, ram:8, su:2, st:4, disk:'HDD', dgb:1000, os:'Windows 10 Pro', b:'19045', age:5.8, stale:0, inv:false, mfg:'HP', mdl:'EliteDesk 705 G5' },
-    { h:'WS-LAGER-04', f:'Michael', l:'Scholz', d:'Lager', cpu:'Intel Celeron G4900', c:2, t:2, ram:4, su:1, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19044', age:6.9, stale:0, inv:false, mfg:'Fujitsu', mdl:'Esprimo D538' }
+    { h:'WS-MARKETING-04', f:'Lena', l:'Hoffmann', d:'Marketing', cpu:'Intel Core i5-12500', c:6, t:12, clock:3000, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22631', age:2.1, stale:1, inv:true, mfg:'Dell Inc.', mdl:'OptiPlex 7090' },
+    { h:'WS-VERTRIEB-11', f:'Markus', l:'Bauer', d:'Vertrieb', cpu:'Intel Core i7-13700', c:16, t:24, clock:2100, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:1.2, stale:0, inv:true, mfg:'Lenovo', mdl:'ThinkCentre M90t' },
+    { h:'WS-BUCH-02', f:'Sabine', l:'Köhler', d:'Buchhaltung', cpu:'Intel Core i5-10400', c:6, t:12, clock:2900, ram:8, su:1, st:4, disk:'SSD', dgb:256, os:'Windows 10 Pro', b:'19045', age:4.6, stale:2, inv:true, mfg:'HP', mdl:'EliteDesk 800 G6' },
+    { h:'WS-IT-07', f:'Daniel', l:'Richter', d:'IT', cpu:'AMD Ryzen 7 5800X', c:8, t:16, clock:3800, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:3.1, stale:0, inv:true, mfg:'Custom', mdl:'Workstation', assigned:true },
+    { h:'WS-ENTW-15', f:'Tobias', l:'Wolf', d:'Entwicklung', cpu:'Intel Core i9-13900K', c:24, t:32, clock:3000, ram:64, su:4, st:4, disk:'SSD', dgb:2048, os:'Windows 11 Pro', b:'22631', age:0.8, stale:0, inv:true, mfg:'Dell Inc.', mdl:'Precision 3660' },
+    { h:'WS-PERSONAL-03', f:'Andrea', l:'Schulz', d:'Personal', cpu:'Intel Core i3-10100', c:4, t:8, clock:3600, ram:8, su:1, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19045', age:5.3, stale:3, inv:true, mfg:'HP', mdl:'ProDesk 400 G6' },
+    { h:'WS-VERTRIEB-08', f:'Kevin', l:'Braun', d:'Vertrieb', cpu:'AMD Ryzen 5 5600', c:6, t:12, clock:3700, ram:16, su:2, st:2, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22621', age:2.4, stale:1, inv:true, mfg:'Lenovo', mdl:'ThinkCentre M75q' },
+    { h:'WS-LAGER-01', f:'Petra', l:'Lang', d:'Lager', cpu:'Intel Core i3-8100', c:4, t:4, clock:3600, ram:8, su:2, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19044', age:6.7, stale:45, inv:true, mfg:'Fujitsu', mdl:'Esprimo D538' },
+    { h:'WS-ENTW-09', f:'Jonas', l:'Frank', d:'Entwicklung', cpu:'AMD Ryzen 7 7700', c:8, t:16, clock:3800, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:1.0, stale:0, inv:true, mfg:'Dell Inc.', mdl:'Precision 3460' },
+    { h:'WS-MARKETING-06', f:'Nina', l:'Albrecht', d:'Marketing', cpu:'Intel Core i5-12500', c:6, t:12, clock:3000, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22631', age:2.0, stale:0, inv:true, mfg:'Dell Inc.', mdl:'OptiPlex 7090' },
+    { h:'WS-GF-01', f:'Stefan', l:'Klein', d:'Geschäftsführung', cpu:'Intel Core i7-13700', c:16, t:24, clock:2100, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:1.5, stale:0, inv:true, mfg:'Lenovo', mdl:'ThinkPad X1 Carbon' },
+    { h:'WS-BUCH-05', f:'Claudia', l:'Neumann', d:'Buchhaltung', cpu:'Intel Core i5-10400', c:6, t:12, clock:2900, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 10 Pro', b:'19045', age:4.2, stale:4, inv:true, mfg:'HP', mdl:'EliteDesk 800 G6' },
+    { h:'WS-IT-02', f:'Sven', l:'Hartmann', d:'IT', cpu:'AMD Ryzen 9 5900X', c:12, t:24, clock:3700, ram:32, su:4, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:3.0, stale:0, inv:true, mfg:'Custom', mdl:'Workstation' },
+    { h:'WS-EMPFANG-01', f:'Julia', l:'Vogt', d:'Empfang', cpu:'Intel Core i3-7100', c:2, t:4, clock:3900, ram:8, su:2, st:2, disk:'HDD', dgb:250, os:'Windows 10 Pro', b:'19045', age:7.5, stale:6, inv:true, mfg:'Fujitsu', mdl:'Esprimo P558' },
+    { h:'WS-VERTRIEB-14', f:'Florian', l:'Maier', d:'Vertrieb', cpu:'Intel Core i5-12500', c:6, t:12, clock:3000, ram:16, su:2, st:4, disk:'SSD', dgb:512, os:'Windows 11 Pro', b:'22621', age:2.3, stale:90, inv:true, mfg:'Dell Inc.', mdl:'OptiPlex 7090' },
+    { h:'WS-ENTW-21', f:'Carolin', l:'Busch', d:'Entwicklung', cpu:'AMD Ryzen 7 5800X', c:8, t:16, clock:3800, ram:32, su:2, st:4, disk:'SSD', dgb:1024, os:'Windows 11 Pro', b:'22631', age:3.2, stale:0, inv:true, mfg:'Dell Inc.', mdl:'Precision 3650' },
+    { h:'WS-BUCH-08', f:'Thomas', l:'Wagner', d:'Buchhaltung', cpu:'Intel Core i5-9500', c:6, t:6, clock:3000, ram:8, su:2, st:4, disk:'HDD', dgb:1000, os:'Windows 10 Pro', b:'19045', age:5.8, stale:0, inv:false, mfg:'HP', mdl:'EliteDesk 705 G5' },
+    { h:'WS-LAGER-04', f:'Michael', l:'Scholz', d:'Lager', cpu:'Intel Celeron G4900', c:2, t:2, clock:3000, ram:4, su:1, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19044', age:6.9, stale:0, inv:false, mfg:'Fujitsu', mdl:'Esprimo D538' }
   ];
 
   function initials(f, l) { return ((f || '?')[0] + (l || '?')[0]).toUpperCase(); }
@@ -123,10 +125,14 @@
     const withInv = devs.filter(d => d.hasInventory).length;
     const stale = devs.filter(d => d.status === 'stale').length;
     const missing = devs.filter(d => d.status === 'missing').length;
-    const needsUpgrade = d => d.status === 'upgrade' || (d.status === 'stale' && (d.upgradeReasons || []).length > 0);
-    const needsAction = d => needsUpgrade(d) || d.status === 'missing';
+    // isUpgradeCandidate ist die Quelle der Wahrheit (view-model.js) — diese Stelle
+    // hier nutzt dieselbe Implementierung, damit "upgradeNeeded" nicht von der
+    // Filter-/Row-Logik abweichen kann.
+    const vm = (typeof window !== 'undefined' && window.HardViewViewModel) ? window.HardViewViewModel : null;
+    const isUpgrade = vm ? vm.isUpgradeCandidate : (d => d.status === 'upgrade' || (d.status === 'stale' && (d.upgradeReasons || []).length > 0));
+    const needsAction = d => isUpgrade(d) || d.status === 'missing';
     const statusUpgrade = devs.filter(d => d.status === 'upgrade').length;
-    const upgrade = devs.filter(needsUpgrade).length;
+    const upgrade = devs.filter(isUpgrade).length;
     const ok = devs.filter(d => d.status === 'ok').length;
     const aged = devs.filter(d => d.ageYears != null);
     const avgAge = aged.length ? (aged.reduce((a, d) => a + d.ageYears, 0) / aged.length) : 0;
@@ -213,7 +219,7 @@
           if (!d) throw new Error('Geraet ist nicht in Inventar oder Masterliste vorhanden');
           ASSIGN[args.host] = Object.assign({}, args);
           applyAssignment(d, ASSIGN[args.host]);
-          return { ok: true };
+          return { ok: true, device: { ...d } };
         }
         case 'get_settings': return JSON.parse(JSON.stringify(SETTINGS));
         case 'set_settings': {

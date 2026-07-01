@@ -29,7 +29,12 @@ http.createServer((req, res) => {
   }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found: ' + p); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'no-referrer'
+    });
     res.end(data);
   });
 }).listen(PORT, HOST, () => console.log('HardView Vorschau: http://localhost:' + PORT));

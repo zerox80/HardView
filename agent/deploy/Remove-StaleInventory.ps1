@@ -35,6 +35,7 @@ if (-not (Test-Path -LiteralPath $InventoryDir -PathType Container)) {
 
 $cutoff = [System.DateTimeOffset]::UtcNow.AddDays(-1 * $RetentionDays)
 $removed = 0
+$failed = 0
 
 function Test-StaleInventoryJsonFile {
     param(
@@ -62,7 +63,10 @@ function Test-StaleInventoryJsonFile {
     if ([string]::IsNullOrWhiteSpace($inventoryHost) -or $null -eq $collectedAtUtcValue -or [string]::IsNullOrWhiteSpace([string] $collectedAtUtcValue)) {
         return $false
     }
-    if ($null -eq $schemaVersion) {
+    # SchemaVersion: nur positiv-int akzeptieren (kein String wie "abc", kein
+    # unbedachter zukuenftiger Major-Sprung, der eine andere Alterssemantik haben
+    # koennte). Aktuell bekannt: Schema 1.
+    if ($null -eq $schemaVersion -or $schemaVersion -isnot [int] -or $schemaVersion -lt 1 -or $schemaVersion -gt 1) {
         return $false
     }
     if ($inventoryHost -ine $File.BaseName) {
@@ -87,9 +91,22 @@ Get-ChildItem -LiteralPath $InventoryDir -File -Filter '*.json' | Where-Object {
     Test-StaleInventoryJsonFile -File $_ -Cutoff $cutoff
 } | ForEach-Object {
     if ($PSCmdlet.ShouldProcess($_.FullName, 'Remove stale inventory JSON')) {
-        Remove-Item -LiteralPath $_.FullName -Force
-        $removed += 1
+        # Per-Datei-Fehler (Share-Sperre, Read-Only ohne Loeschrechte, gelocktes File
+        # waehrend File.Replace) duerfen den gesamten Bereinigungslauf nicht abbrechen.
+        # Mit $ErrorActionPreference='Stop' wuerde ein einziger Fehler sonst die ganze
+        # Schleife abbrechen und die restlichen Dateien unberuehrt lassen.
+        try {
+            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+            $removed += 1
+        } catch {
+            $failed += 1
+            Write-Warning ("Konnte '{0}' nicht entfernen: {1}" -f $_.FullName, $_.Exception.Message)
+        }
     }
 }
 
-Write-Host ("Entfernte Inventar-Dateien: {0}" -f $removed)
+if ($failed -gt 0) {
+    Write-Host ("Entfernte Inventar-Dateien: {0} ({1} nicht loeschbar, siehe Warnings)" -f $removed, $failed)
+} else {
+    Write-Host ("Entfernte Inventar-Dateien: {0}" -f $removed)
+}
