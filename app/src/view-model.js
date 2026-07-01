@@ -7,15 +7,14 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  const { fmtDe } = (typeof window !== 'undefined' && window.HVShared)
+    ? window.HVShared
+    : require('./shared.js');
+
   const STATUS_RANK = { ok: 0, upgrade: 1, stale: 2, missing: 3 };
 
   function lower(value) {
     return value == null ? '' : String(value).toLowerCase();
-  }
-
-  // Deutsche Dezimaldarstellung, 1 Nachkommastelle - spiegelt fmt_de() aus upgrade.rs.
-  function fmtDe(value) {
-    return Number(value).toFixed(1).replace('.', ',');
   }
 
   function isUpgradeCandidate(device) {

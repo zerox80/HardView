@@ -33,20 +33,37 @@ fn fallback_users_from_devices_skips_empty_and_unbekannt() {
 }
 
 #[test]
-fn fallback_users_from_devices_dedupes_by_sam_and_synthesizes_when_missing() {
+fn fallback_users_from_devices_dedupes_by_real_sam() {
+    let devs = vec![
+        // Gleicher echter SAM (z.B. dieselbe Person auf zwei Geraeten) -> dedupliziert.
+        device("WS-A", "Anna Berger", "a.berger", "IT"),
+        device("WS-B", "Anna Berger", "a.berger", "IT"),
+    ];
+    let users = fallback_users_from_devices(&devs);
+    assert_eq!(users.len(), 1);
+    assert_eq!(users[0].sam, "a.berger");
+}
+
+#[test]
+fn fallback_users_from_devices_disambiguates_synthesized_sam_collision() {
     let devs = vec![
         // Kein user_sam -> wird aus dem Anzeigenamen synthetisiert.
         device("WS-A", "Jürgen Müller", "", "IT"),
-        // Zweites Geraet mit gleichem synthetisiertem SAM -> dedupliziert (erstes gewinnt).
+        // Zweites Geraet mit gleichem synthetisiertem SAM (andere Person, anderer Host)
+        // -> darf NICHT verworfen werden, sondern wird per Host disambiguiert.
         device("WS-B", "Jürgen Müller", "", "Marketing"),
         // Eigener echter SAM -> eigener Eintrag.
         device("WS-C", "Anna Berger", "a.berger", "IT"),
     ];
     let users = fallback_users_from_devices(&devs);
-    assert_eq!(users.len(), 2);
-    let juergen = users.iter().find(|u| u.sam == "juergen.mueller").unwrap();
-    assert_eq!(juergen.display, "Jürgen Müller");
-    assert_eq!(juergen.dept, "IT", "erstes Geraet (IT) gewinnt beim Dedup");
+    assert_eq!(users.len(), 3);
+    let first = users.iter().find(|u| u.sam == "juergen.mueller").unwrap();
+    assert_eq!(first.dept, "IT");
+    let second = users
+        .iter()
+        .find(|u| u.sam == "juergen.mueller.ws-b")
+        .unwrap();
+    assert_eq!(second.dept, "Marketing");
     assert!(users.iter().any(|u| u.sam == "a.berger"));
 }
 
