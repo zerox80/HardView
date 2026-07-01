@@ -4,6 +4,7 @@
   const H = window.HardView;
   const { $, DEFAULT_THRESHOLDS, TAURI, VIEWS, el, invoke, loadData, renderDrawer,
     renderKpis, renderList, renderRows, state, svg, toast, ViewModel } = H;
+  const { hashColor: colorFor } = window.HVShared;
 
   // ---------------- Zuordnungs-Modal ----------------
   async function openAssign(host) {
@@ -77,8 +78,6 @@
     const p = (name || '').trim().split(/\s+/).filter(Boolean);
     return (((p[0] || '?')[0] || '?') + ((p[1] || '')[0] || '')).toUpperCase();
   }
-  function colorFor(s) { const PAL = ['#4f8cff', '#2fd6a6', '#b98cff', '#ff8a4f', '#ffb454', '#5fc9ff', '#ff7a9c', '#7ee081']; let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return PAL[n % PAL.length]; }
-
   // ---------------- Dashboard / Abteilungen / Berichte ----------------
   function distBars(items, colorFn) {
     const max = Math.max(1, ...items.map((i) => i.count));

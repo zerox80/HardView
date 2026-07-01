@@ -10,7 +10,7 @@
     "icons": "tauri icon src-tauri/icon-source.png",
     "preview": "node dev-server.js",
     "check": "npm run check:js",
-    "check:js": "node --check src/view-model.js && node --check src/app.js && node --check src/app-panels.js && node --check src/mock.js && node --check dev-server.js",
+    "check:js": "node --check src/shared.js && node --check src/view-model.js && node --check src/app.js && node --check src/app-panels.js && node --check src/mock.js && node --check dev-server.js",
     "test": "node --test tests/upgrade-parity.test.js tests/view-model.test.js"
   },
   "devDependencies": {

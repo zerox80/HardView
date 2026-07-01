@@ -4,9 +4,11 @@
  * In der echten Tauri-App ist window.__TAURI__ vorhanden und dieser Code wird NICHT genutzt.
  * Die Berechnungslogik hier spiegelt store.rs/upgrade.rs wider (Quelle der Wahrheit = Rust). */
 (function () {
+  const { hashColor, fmtDe } = (typeof window !== 'undefined' && window.HVShared)
+    ? window.HVShared
+    : require('./shared.js');
   const DEFAULT_THRESHOLDS = { minRamGB: 8, maxAgeYears: 5, staleDays: 30, requireSsd: true, minCpuCores: 4, minCpuClockMhz: 0, targetRamGB: 16 };
   let THRESH = Object.assign({}, DEFAULT_THRESHOLDS);
-  const PALETTE = ['#4f8cff', '#2fd6a6', '#b98cff', '#ff8a4f', '#ffb454', '#5fc9ff', '#ff7a9c', '#7ee081'];
 
   // Roh-PCs (entspricht sample-data). inv=false -> in CSV aber ohne Agent-JSON.
   const PCS = [
@@ -30,12 +32,9 @@
     { h:'WS-LAGER-04', f:'Michael', l:'Scholz', d:'Lager', cpu:'Intel Celeron G4900', c:2, t:2, ram:4, su:1, st:2, disk:'HDD', dgb:500, os:'Windows 10 Pro', b:'19044', age:6.9, stale:0, inv:false, mfg:'Fujitsu', mdl:'Esprimo D538' }
   ];
 
-  function hashColor(s) { let n = 0; for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return PALETTE[n % PALETTE.length]; }
   function initials(f, l) { return ((f || '?')[0] + (l || '?')[0]).toUpperCase(); }
   function osShort(os, b) { const w = os.includes('11') ? 'Win 11' : os.includes('10') ? 'Win 10' : os; const map = { '22631':'23H2','22621':'22H2','19045':'22H2','19044':'21H2','26100':'24H2','26200':'25H2' }; return w + (map[b] ? ' ' + map[b] : ''); }
   function lastSeen(days) { if (days == null) return '—'; if (days < -1) return 'Zeitstempel in Zukunft'; if (days < 1) return 'gerade eben'; if (days === 1) return 'vor 1 Tag'; return 'vor ' + days + ' Tagen'; }
-  // Deutsche Dezimaldarstellung, 1 Nachkommastelle — spiegelt fmt_de() aus upgrade.rs.
-  function fmtDe(v) { return Number(v).toFixed(1).replace('.', ','); }
   function intAtLeast(value, fallback, min) {
     const parsed = parseInt(value, 10);
     return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;

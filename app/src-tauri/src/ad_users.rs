@@ -7,7 +7,9 @@ use std::collections::HashSet;
 
 /// Baut die Fallback-Benutzerliste aus Geraetedaten (CSV/Inventar), wenn AD deaktiviert
 /// oder keine AD-Antwort verfuegbar ist. Dedupliziert nach (synthetisiertem oder echtem)
-/// SAM und sortiert nach Anzeigename.
+/// SAM und sortiert nach Anzeigename. Kollidieren zwei synthetisierte SAMs (z.B. zwei
+/// Personen mit gleichem Anzeigenamen in unterschiedlichen Abteilungen), wird der Host
+/// als Disambiguator angehaengt statt den zweiten Eintrag stillschweigend zu verwerfen.
 pub(crate) fn fallback_users_from_devices(devs: &[DeviceFull]) -> Vec<AdUser> {
     let mut seen = HashSet::new();
     let mut users: Vec<AdUser> = Vec::new();
@@ -15,10 +17,15 @@ pub(crate) fn fallback_users_from_devices(devs: &[DeviceFull]) -> Vec<AdUser> {
         if d.user_display.is_empty() || d.user_display == "Unbekannt" {
             continue;
         }
-        let sam = if d.user_sam.is_empty() {
-            synth_sam(&d.user_display)
-        } else {
+        let sam = if !d.user_sam.is_empty() {
             d.user_sam.clone()
+        } else {
+            let base = synth_sam(&d.user_display);
+            if seen.contains(&base) {
+                format!("{base}.{}", d.host.to_lowercase())
+            } else {
+                base
+            }
         };
         if seen.insert(sam.clone()) {
             users.push(AdUser {

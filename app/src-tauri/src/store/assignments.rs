@@ -16,10 +16,13 @@ pub fn read_assignments(path: &str) -> AssignmentStore {
             return AssignmentStore::default();
         }
     }
-    let mut store = read_text(path)
-        .ok()
-        .and_then(|t| serde_json::from_str::<AssignmentStore>(&t).ok())
-        .unwrap_or_default();
+    let mut store = match read_text(path) {
+        Ok(txt) => serde_json::from_str::<AssignmentStore>(&txt).unwrap_or_else(|e| {
+            eprintln!("[hardview] assignments.json konnte nicht geparst werden ({path}): {e}");
+            AssignmentStore::default()
+        }),
+        Err(_) => AssignmentStore::default(),
+    };
     // Schluessel auf Grossschreibung normalisieren (Host-Matching)
     let upper: HashMap<String, AssignmentEntry> = store
         .assignments

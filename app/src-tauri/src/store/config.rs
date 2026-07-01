@@ -37,10 +37,12 @@ pub fn default_config() -> Config {
 }
 
 pub fn load_config() -> Config {
-    let mut cfg = if let Ok(txt) = fs::read_to_string(config_path()) {
-        serde_json::from_str::<Config>(&txt).unwrap_or_else(|_| default_config())
-    } else {
-        default_config()
+    let mut cfg = match fs::read_to_string(config_path()) {
+        Ok(txt) => serde_json::from_str::<Config>(&txt).unwrap_or_else(|e| {
+            eprintln!("[hardview] config.json konnte nicht geparst werden: {e}");
+            default_config()
+        }),
+        Err(_) => default_config(),
     };
     // Dev-/Override per Umgebungsvariablen (erleichtert Tests gegen sample-data)
     if let Ok(v) = std::env::var("HARDVIEW_DATA_DIR") {

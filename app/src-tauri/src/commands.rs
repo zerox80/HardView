@@ -95,7 +95,8 @@ pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser
             let _fetch_guard = state.ad_fetch.lock().map_err(|e| e.to_string())?;
             match ad::fetch_ad_users(&query) {
                 Ok(list) => users = list,
-                Err(_) => {
+                Err(e) => {
+                    eprintln!("[hardview] AD-Suche fehlgeschlagen ('{query}'): {e}");
                     if let Some(list) = cached_full {
                         users = list;
                     }
@@ -121,15 +122,18 @@ pub fn get_ad_users(state: State<AppState>, search: String) -> Result<Vec<AdUser
             };
             match refreshed {
                 Some(list) => users = list,
-                None => {
-                    if let Ok(list) = ad::fetch_ad_users("") {
+                None => match ad::fetch_ad_users("") {
+                    Ok(list) => {
                         let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
                         if inner.config.ad_enabled {
                             inner.ad = Some((Instant::now(), list.clone()));
                             users = list;
                         }
                     }
-                }
+                    Err(e) => {
+                        eprintln!("[hardview] AD-Vollabruf fehlgeschlagen: {e}");
+                    }
+                },
             }
         }
     }

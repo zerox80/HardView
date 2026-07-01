@@ -76,6 +76,10 @@ jobs:
         working-directory: app
         run: npm test
 
+      - name: npm audit
+        working-directory: app
+        run: npm audit --audit-level=high
+
   source-limits:
     name: Source-Line-Limits
     runs-on: ubuntu-latest
@@ -115,7 +119,7 @@ jobs:
   build:
     name: Tauri-Build (Windows)
     runs-on: windows-latest
-    needs: [backend, frontend, source-limits]
+    needs: [backend, frontend, source-limits, audit]
     steps:
       - uses: actions/checkout@v5
 
