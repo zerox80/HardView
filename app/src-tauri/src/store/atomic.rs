@@ -183,6 +183,44 @@ fn read_lock_pid(path: &Path) -> Option<u32> {
     None
 }
 
+/// Prueft, ob ein Prozess mit der angegebenen PID noch aktiv ist. Auf Windows per
+/// OpenProcess + GetExitCodeProcess; auf anderen Plattformen koennen wir das nicht
+/// portabel pruefen und gehen konservativ davon aus, der Prozess sei noch am Leben
+/// (kein Lock-Steal).
+#[cfg(windows)]
+fn is_process_alive(pid: u32) -> bool {
+    use std::os::raw::c_void;
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn GetExitCodeProcess(h: *mut c_void, code: *mut u32) -> i32;
+        fn CloseHandle(h: *mut c_void) -> i32;
+        fn GetLastError() -> u32;
+    }
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const STILL_ACTIVE: u32 = 259;
+    const ERROR_INVALID_PARAMETER: u32 = 87;
+    unsafe {
+        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if h.is_null() {
+            // OpenProcess liefert NULL, wenn der Prozess nicht existiert (-> tot, wir
+            // duermen uebernehmen) ODER wenn wir keine Berechtigung haben (-> evtl.
+            // am Leben, konservativ nicht uebernehmen). Unterscheidung anhand des
+            // letzten Fehlers: ERROR_INVALID_PARAMETER bedeutet "PID nicht aktiv".
+            let last = GetLastError();
+            return last != ERROR_INVALID_PARAMETER;
+        }
+        let mut code: u32 = 0;
+        let ok = GetExitCodeProcess(h, &mut code);
+        CloseHandle(h);
+        ok != 0 && code == STILL_ACTIVE
+    }
+}
+
+#[cfg(not(windows))]
+fn is_process_alive(_pid: u32) -> bool {
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::read_lock_pid;
@@ -223,42 +261,4 @@ mod tests {
 
         assert_eq!(pid, None);
     }
-}
-
-/// Prueft, ob ein Prozess mit der angegebenen PID noch aktiv ist. Auf Windows per
-/// OpenProcess + GetExitCodeProcess; auf anderen Plattformen koennen wir das nicht
-/// portabel pruefen und gehen konservativ davon aus, der Prozess sei noch am Leben
-/// (kein Lock-Steal).
-#[cfg(windows)]
-fn is_process_alive(pid: u32) -> bool {
-    use std::os::raw::c_void;
-    extern "system" {
-        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
-        fn GetExitCodeProcess(h: *mut c_void, code: *mut u32) -> i32;
-        fn CloseHandle(h: *mut c_void) -> i32;
-        fn GetLastError() -> u32;
-    }
-    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-    const STILL_ACTIVE: u32 = 259;
-    const ERROR_INVALID_PARAMETER: u32 = 87;
-    unsafe {
-        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if h.is_null() {
-            // OpenProcess liefert NULL, wenn der Prozess nicht existiert (-> tot, wir
-            // duermen uebernehmen) ODER wenn wir keine Berechtigung haben (-> evtl.
-            // am Leben, konservativ nicht uebernehmen). Unterscheidung anhand des
-            // letzten Fehlers: ERROR_INVALID_PARAMETER bedeutet "PID nicht aktiv".
-            let last = GetLastError();
-            return last != ERROR_INVALID_PARAMETER;
-        }
-        let mut code: u32 = 0;
-        let ok = GetExitCodeProcess(h, &mut code);
-        CloseHandle(h);
-        ok != 0 && code == STILL_ACTIVE
-    }
-}
-
-#[cfg(not(windows))]
-fn is_process_alive(_pid: u32) -> bool {
-    true
 }
