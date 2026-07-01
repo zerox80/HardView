@@ -173,12 +173,56 @@ fn read_lock_pid(path: &Path) -> Option<u32> {
     for line in content.lines() {
         let line = line.trim();
         if let Some(rest) = line.strip_prefix("pid=") {
-            if let Ok(pid) = rest.trim().parse::<u32>() {
-                return Some(pid);
+            if let Some(raw_pid) = rest.split_whitespace().next() {
+                if let Ok(pid) = raw_pid.parse::<u32>() {
+                    return Some(pid);
+                }
             }
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_lock_pid;
+    use std::fs;
+
+    #[test]
+    fn read_lock_pid_accepts_current_lock_file_format() {
+        let path = std::env::temp_dir().join(format!(
+            "hardview-lock-pid-{}-{}.lock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, "pid=12345 createdAtUtc=2026-07-01T20:00:00Z\n").unwrap();
+
+        let pid = read_lock_pid(&path);
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(pid, Some(12345));
+    }
+
+    #[test]
+    fn read_lock_pid_rejects_malformed_pid() {
+        let path = std::env::temp_dir().join(format!(
+            "hardview-lock-pid-malformed-{}-{}.lock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, "pid=abc createdAtUtc=2026-07-01T20:00:00Z\n").unwrap();
+
+        let pid = read_lock_pid(&path);
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(pid, None);
+    }
 }
 
 /// Prueft, ob ein Prozess mit der angegebenen PID noch aktiv ist. Auf Windows per
