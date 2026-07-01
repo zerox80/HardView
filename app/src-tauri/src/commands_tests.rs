@@ -1,4 +1,20 @@
-use crate::identity::synth_sam;
+use crate::identity::{current_user_domain, synth_sam};
+
+#[test]
+fn current_user_domain_never_returns_blank_identity() {
+    // Kann den exakten Wert nicht pruefen (haengt vom ausfuehrenden Konto ab, z. B.
+    // GitHub-Actions-Runner statt Domaenen-Benutzer) - stellt aber sicher, dass die
+    // Win32-Ermittlung (oder ihr Umgebungsvariablen-Fallback) nie leer/panisch ist,
+    // sondern immer eine anzeigbare "DOMAENE\Benutzer"-Kennung liefert.
+    let (full, domain) = current_user_domain();
+    assert!(!full.trim().is_empty(), "Identitaet darf nicht leer sein");
+    assert!(
+        full.contains('\\'),
+        "erwarte DOMAENE\\Benutzer-Format: {}",
+        full
+    );
+    assert!(!domain.trim().is_empty(), "Domaene darf nicht leer sein");
+}
 
 #[test]
 fn synth_sam_transliterates_umlauts() {

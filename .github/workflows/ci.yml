@@ -110,7 +110,7 @@ jobs:
 
       - name: Sicherheits-Advisories pruefen
         working-directory: app/src-tauri
-        run: cargo audit
+        run: cargo audit --deny warnings
 
   build:
     name: Tauri-Build (Windows)

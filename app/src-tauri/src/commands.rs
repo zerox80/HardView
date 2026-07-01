@@ -1,6 +1,6 @@
 //! Tauri-Befehle (Bruecke Frontend <-> Backend). Halten Geraeteliste & AD-Cache im State.
 use crate::ad;
-use crate::identity::synth_sam;
+use crate::identity::{current_user_domain, synth_sam};
 use crate::model::*;
 use crate::store;
 use std::collections::BTreeSet;
@@ -276,18 +276,4 @@ pub fn export_devices(state: State<AppState>, format: String) -> Result<serde_js
 
     let (file, rows) = crate::export::write_devices_csv(&devs)?;
     Ok(serde_json::json!({ "ok": true, "path": file.to_string_lossy(), "rows": rows }))
-}
-
-fn current_user_domain() -> (String, String) {
-    let user = std::env::var("USERNAME").unwrap_or_else(|_| "Unbekannt".into());
-    let domain = std::env::var("USERDNSDOMAIN")
-        .or_else(|_| std::env::var("USERDOMAIN"))
-        .unwrap_or_else(|_| "corp.local".into())
-        .to_lowercase();
-    let full = format!(
-        "{}\\{}",
-        std::env::var("USERDOMAIN").unwrap_or_else(|_| "CORP".into()),
-        user
-    );
-    (full, domain)
 }
